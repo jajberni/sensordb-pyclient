@@ -4,11 +4,11 @@ Low Level SensorDB functions
 
 import requests
 
-
-
 class SensorDB:
     """The SensorDB class handles the interface to a sensorDB server 
     """
+    
+    # --- User Management API ---
     
     # Initialise with host address  
     def __init__(self, host, username = None, password = None):
@@ -57,6 +57,14 @@ class SensorDB:
         r = requests.post(self.host + '/login', data = payload)
         return r.text 
     
+    def remove(self, username, password):
+        """Removes a regitered user.
+        Username and Password are required.
+        """
+        r = requests.post(self.host + '/remove', data={'name' : username, 'password':password})
+        return r.text
+    
+    # --- User Access API ---
     
     # Returns session data
     def get_session(self, username = None):
@@ -68,6 +76,13 @@ class SensorDB:
         else:
             r = requests.get(self.host + '/session', cookies = self.cookie, data = {"username" : username})
         return r.text
+    
+    def get_users(self):
+        """Gets the user list."""
+        r = requests.get(self.host + "/users")
+        return r.text
+    
+    
     
 if (__name__ == '__main__'):
     sensor_test = SensorDB("http://127.0.0.1:2000")

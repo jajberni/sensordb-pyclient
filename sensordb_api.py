@@ -16,7 +16,7 @@ class User(object):
     
     def get_session(self):
         return self.__parent_db.get_session(username = self.username)
-        
+    
     
 
 class Experiment(object):
@@ -32,6 +32,9 @@ class Node(object):
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
+            
+    def delete(self):
+        return requests.delete(self.__parent_db._host + "/nodes", {"nid" : self.nid})  
 
 class Stream(object):
     def __init__(self, sensor_db, **kwargs):
@@ -40,28 +43,40 @@ class Stream(object):
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]     
 
+    def get_measurments(self):
+        """Gets measurement data associated with the stream."""
+        return requests.get(self.__parent_db._host + "/measurements", {"mid": self.mid})
+
+
+
 
 class SensorDB(object):
     """The SensorDB class handles the interface to a sensorDB server 
     """
     
-    # Initialise with __host address  
+    # Initialise with host address  
     def __init__(self, host, username = None, password = None):
         """The constructor for SensorDB.
-        A __host address must be specified. Optionally a username and password may be specified to log in immediately.
+        A host address must be specified. Optionally a username and password may be specified to log in immediately.
         """
-        self.__host = host
+        self._host = host
         self.cookie = None
         self.user = None
-        self.experiments = None
-        self.nodes = None
-        self.streams = None
+        self.experiments = []
+        self.nodes = []
+        self.streams = []
         
         if(username and password):
             self.login(username, password)
+            
+    
+    
 
-    #TODO - Check against old data so new objects aren't created every time.
     def __convert_session(self, json_text):
+        #TODO - Check IDs against old data so new objects aren't created every time.
+        #TODO - Streams should be stored in their parent nodes, nodes should be 
+        #    stored in experiments, experiments should be stored in the user object.
+        
         if json_text == "":
             return None
         
@@ -97,14 +112,14 @@ class SensorDB(object):
         Returns the session data if successful.
         """
         payload_login = {'name' : username, 'password':password}
-        r = requests.post(self.__host + '/login', data=payload_login)
+        r = requests.post(self._host + '/login', data=payload_login)
         self.cookie = r.cookies
         return self.__convert_session(r.text)
     
     #logs out and deletes the cookie
     def logout(self):
         """Logs out the current user"""
-        requests.post(self.__host + '/logout');
+        requests.post(self._host + '/logout');
         self.cookie = None
         return
     
@@ -124,14 +139,14 @@ class SensorDB(object):
         if website != None:
             payload['website'] = website
              
-        r = requests.post(self.__host + '/login', data = payload)
+        r = requests.post(self._host + '/login', data = payload)
         return r.text
     
     def remove(self, username, password):
         """Removes a regitered user.
         Username and Password are required.
         """
-        r = requests.post(self.__host + '/remove', data={'name' : username, 'password':password})
+        r = requests.post(self._host + '/remove', data={'name' : username, 'password':password})
         return r.text
     
     # --- User Access API ---
@@ -142,16 +157,39 @@ class SensorDB(object):
         Gets data for a particular user or the current user if none is specified
         """
         if username == None:
-            r = requests.get(self.__host + '/session', cookies = self.cookie)
+            r = requests.get(self._host + '/session', cookies = self.cookie)
         else:
-            r = requests.get(self.__host + '/session', cookies = self.cookie, data = {"username" : username})
+            r = requests.get(self._host + '/session', cookies = self.cookie, data = {"username" : username})
         return self.__convert_session(r.text)
     
     def get_users(self):
         """Gets the user list."""
-        r = requests.get(self.__host + "/users")
+        r = requests.get(self._host + "/users")
         return r.text
     
+    # Put this in the user object?
+    def create_experiment(self, name, timezone, description = None, website = None, picture = None, public_access = None):
+        payload = {"name": name, "timezone": timezone}
+        if description != None:
+            payload["description"] = description
+    
+        if website != None:
+            payload["website"] = website
+        
+        if picture != None:
+            payload["picture"] = picture
+            
+        if public_access != None:
+            payload["public_access"] = public_access
+        
+        r = requests.post(self._host + '/experiments', cookies = self.cookie, data = payload)
+        
+        #TODO - examine r to determine success
+        
+        #Refresh object data - There should now be a new experiment 
+        self.get_session()
+        
+        return r.text
     
     
 if (__name__ == '__main__'):

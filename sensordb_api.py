@@ -1,8 +1,20 @@
+"""@package sensordb_api
+Low Level SensorDB functions 
+"""
+
 import requests
 
+
+
 class SensorDB:
+    """The SensorDB class handles the interface to a sensorDB server 
+    """
+    
     # Initialise with host address  
     def __init__(self, host, username = None, password = None):
+        """The constructor for SensorDB.
+        A host address must be specified. Optionally a username and password may be specified to log in immediately.
+        """
         self.host = host
         self.cookie = None
         if(username and password):
@@ -10,6 +22,10 @@ class SensorDB:
     
     # logs in to the server and stores the login cookie
     def login(self, username, password):
+        """Log in to the SensorDB server.
+        A username and password must be specified.
+        Returns the session data if successful.
+        """
         payload_login = {'name' : username, 'password':password}
         r = requests.post(self.host + '/login', data=payload_login)
         self.cookie = r.cookies
@@ -17,12 +33,16 @@ class SensorDB:
     
     #logs out and deletes the cookie
     def logout(self):
+        """Logs out the current user"""
         requests.post(self.host + '/logout');
         self.cookie = None
         return
     
     #Registers a new user
     def register(self, name, password, email, description = None, picture = None, website = None):
+        """Registers a new user.
+        Name, password and email are required. Description, picture and websites are all optional.
+        """
         payload = {'name' : name, 'password' : password, email : "email"}
         
         if description != None:
@@ -40,6 +60,9 @@ class SensorDB:
     
     # Returns session data
     def get_session(self, username = None):
+        """Gets session data.
+        Gets data for a particular user or the current user if none is specified
+        """
         if username == None:
             r = requests.get(self.host + '/session', cookies = self.cookie)
         else:

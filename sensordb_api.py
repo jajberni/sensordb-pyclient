@@ -7,48 +7,140 @@ import json
 
 #TODO - Perform initialisation checks in the User, Experiment, Node and Stream objects to make sure the minimum required variables exist. 
 
+# Check that an object was initialised with all of the required variables
+def _field_check(check_object, required_fields):
+    for field in required_fields:
+        if not field in vars(check_object):
+            # Should this create a variable containing 'None' instead of raising an error?
+            raise Exception("Missing input field: " + field)
+
 class User(object):
     def __init__(self, sensor_db, **kwargs):
         self.__parent_db = sensor_db
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
+            
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at"]
+        _field_check(self, required_fields)
+
+    def create_experiment(self, name, timezone, **kwargs):
+        payload = {"name": name, "timezone": timezone}
+        optional_fields = ["description", "website", "picture", "public_access"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        
+        r = requests.post(self.__parent_db._host + '/experiments', cookies = self.cookie, data = payload)
+        
+        #TODO - examine r to determine success
+        
+        #Refresh object data - There should now be a new experiment 
+        self.__parent_db.get_session()
+        
+        return r.text
     
     def get_session(self):
         return self.__parent_db.get_session(username = self.username)
     
-    
+    def get_tokens(self):
+        r = requests.get(self.__parent_db._host + "/tokens")
+        return json.loads(r.text)
+
 
 class Experiment(object):
     def __init__(self, sensor_db, **kwargs):
         self.__parent_db = sensor_db
+        self.metadata = {} # Create blank metadata variable in case it is not in the json file
+        self.nodes = []
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
         
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "metadata", "uid", "timezone"]
+        _field_check(self, required_fields)
+        
+          
+    def update(self, **kwargs):
+        valid_fields = ["name", "website", "description", "picture", "access_restriction"]
+        
+        for key in kwargs:
+            if key in valid_fields:
+                requests.put(self.__parent_db._host + "/experiments", {key: kwargs[key]});
+                # TODO - Check the return value for an error
+        return 
+    
+    def create_node(self, name, **kwargs):
+        payload = {"name": name, "eid":self._id}
+        optional_fields = ["description", "website", "picture", "lat", "lon", "alt"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        
+        requests.post(self.__parent_db._host + "/nodes", payload);
+        
+        self.__parent_db.get_session()
+        
+        return
+
+        
 class Node(object):
     def __init__(self, sensor_db, **kwargs):
         self.__parent_db = sensor_db
+        self.streams = []
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
-            
+
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "metadata", "uid", "eid", "alt", "lat", "lon"]
+        _field_check(self, required_fields)
+    
+    
+    def create_stream(self, name, **kwargs):
+        payload = {"name": name, "nid":self._id}
+        optional_fields = ["description", "website", "picture", "mid"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        
+        requests.post(self.__parent_db._host + "/nodes", payload);
+    
     def delete(self):
-        return requests.delete(self.__parent_db._host + "/nodes", {"nid" : self.nid})  
+        r = requests.delete(self.__parent_db._host + "/nodes", {"nid" : self.nid})
+        self.__parent_db.get_session()
+        return r.text
+      
 
 class Stream(object):
     def __init__(self, sensor_db, **kwargs):
         self.__parent_db = sensor_db
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
-            vars(self)[key] = kwargs[key]     
+            vars(self)[key] = kwargs[key]
+            
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "mid", "uid", "nid"]
+        _field_check(self, required_fields)
 
-    def get_measurments(self):
+
+    def get_measurements(self):
         """Gets measurement data associated with the stream."""
         return requests.get(self.__parent_db._host + "/measurements", {"mid": self.mid})
 
+    def get_data(self, start_date, end_date, level = None):
+        payload = {"sd": start_date, "ed": end_date, "sid":self._id}
+        
+        if level != None:
+            payload["level"] = level
+        
+        r = requests.get(self.__parent_db._host + "/data", data = payload)
 
-
+        return json.loads(r.text)
 
 class SensorDB(object):
     """The SensorDB class handles the interface to a sensorDB server 
@@ -63,8 +155,8 @@ class SensorDB(object):
         self.cookie = None
         self.user = None
         self.experiments = []
-        self.nodes = []
-        self.streams = []
+        self._nodes = []
+        self._streams = []
         
         if(username and password):
             self.login(username, password)
@@ -94,12 +186,27 @@ class SensorDB(object):
         if 'nodes' in value_store:
             self.nodes = []
             for node_data in value_store['nodes']:
-                self.nodes.append(Node(self, **node_data))
+                new_node = Node(self, **node_data)
+                
+                self._nodes.append(new_node)
+                
+                for experiment in self.experiments:
+                    if new_node.eid == experiment._id:
+                        experiment.nodes.append(new_node)
+                        break
+                
             
         if 'streams' in value_store:
             self.streams = []
             for stream_data in value_store['streams']:
-                self.experiments.append(Stream(self, **stream_data))
+                new_stream = Stream(self, **stream_data)
+                
+                self._streams.append(new_stream)
+                
+                for node in self._nodes:
+                    if new_stream.nid == node._id:
+                        node.streams.append(new_stream)
+                
         
         return
     
@@ -167,30 +274,7 @@ class SensorDB(object):
         r = requests.get(self._host + "/users")
         return r.text
     
-    # Put this in the user object?
-    def create_experiment(self, name, timezone, description = None, website = None, picture = None, public_access = None):
-        payload = {"name": name, "timezone": timezone}
-        if description != None:
-            payload["description"] = description
-    
-        if website != None:
-            payload["website"] = website
-        
-        if picture != None:
-            payload["picture"] = picture
-            
-        if public_access != None:
-            payload["public_access"] = public_access
-        
-        r = requests.post(self._host + '/experiments', cookies = self.cookie, data = payload)
-        
-        #TODO - examine r to determine success
-        
-        #Refresh object data - There should now be a new experiment 
-        self.get_session()
-        
-        return r.text
-    
+
     
 if (__name__ == '__main__'):
     sensor_test = SensorDB("http://127.0.0.1:2000")

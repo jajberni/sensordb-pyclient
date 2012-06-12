@@ -1,6 +1,6 @@
 from sensordb_api import *
 import getpass
-"""
+
 default_host = "http://phenonet.com:9001"
 
 host = raw_input("Please enter the host you wish to connect to (None for default). [" + default_host + "]:")
@@ -9,10 +9,7 @@ if host == "":
 
 username = raw_input("Username: ")
 password = getpass.getpass("Password: ")
-"""
-host = "http://127.0.0.1:2000"
-username = "eholland"
-password = "john1098"
+
 
 test_db = SensorDB(host, username, password)
 

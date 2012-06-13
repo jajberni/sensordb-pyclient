@@ -57,13 +57,13 @@ class metaBase(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r = requests.get(self._parent_db._host + '/metadata/add', data = payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + '/metadata/add', params = payload, cookies = self._parent_db._cookie)
         return r.text
     
     def metadata_remove(self):
         """Removes the metadata for the current object."""
         payload = {"id": self._id, "name": self.name}
-        r = requests.get(self._parent_db._host + '/metadata/remove', data = payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + '/metadata/remove', params = payload, cookies = self._parent_db._cookie)
         if r.text == "":
             self._parent_db.get_session();
             return None
@@ -71,7 +71,7 @@ class metaBase(object):
     
     def metadata_retrieve(self):
         """Retrieves and updates the metadata for the current object."""
-        r = requests.get(self._parent_db._host + '/metadata/' + self._id, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + '/metadata/retrieve/' + self._id, cookies = self._parent_db._cookie)        
         self.metadata = json.loads(r.text)
         return
 
@@ -257,13 +257,13 @@ class SensorDB(object):
         if 'user' in value_store:
             print value_store['user']
             self.user = User(self, **value_store['user'])
-            #self.user.metadata_retrieve();
+            self.user.metadata_retrieve();
             
         if 'experiments' in value_store:
             self.experiments = []
             for experiment_data in value_store['experiments']:
                 new_experiment = Experiment(self, **experiment_data)
-                #new_experiment.metadata_retrieve();
+                new_experiment.metadata_retrieve();
                 self.experiments.append(new_experiment)
                 
                 if(new_experiment.uid == self.user._id):
@@ -273,7 +273,7 @@ class SensorDB(object):
             self.nodes = []
             for node_data in value_store['nodes']:
                 new_node = Node(self, **node_data)
-                #new_node.metadata_retrieve();
+                new_node.metadata_retrieve();
                 
                 self._nodes.append(new_node)
                 
@@ -287,7 +287,7 @@ class SensorDB(object):
             self.streams = []
             for stream_data in value_store['streams']:
                 new_stream = Stream(self, **stream_data)
-                #new_stream.metadata_retrieve();
+                new_stream.metadata_retrieve();
                 
                 self._streams.append(new_stream)
                 

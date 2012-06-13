@@ -172,7 +172,7 @@ class Node(metaBase):
         """Creates a new stream in the current node.
         Requires a name. Optional arguments are:
         "description", "website", "picture" and "mid"."""
-        payload = {"name": name, "mid": mid, "nid":self._id}
+        payload = {"name": name, "nid":self._id, "mid": mid}
         optional_fields = ["description", "website", "picture"] 
         for key in kwargs:
             if key in optional_fields:
@@ -180,7 +180,7 @@ class Node(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
+        r = requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
         self._parent_db.get_session();
     
     def update(self, **kwargs):
@@ -215,11 +215,6 @@ class Stream(metaBase):
         """
         valid_fields = ["name", "website", "description", "picture", "mid", "nid"]
         return super(Stream, self).update("/streams", "sid", valid_fields, **kwargs)
-
-    def get_measurements(self):
-        """Gets measurement data associated with the stream."""
-        r = requests.get(self._parent_db._host + "/measurements", {"mid": self.mid}, cookies = self._parent_db._cookie)
-        return json.loads(r.text)
 
     def get_data(self, start_date, end_date, level = None):
         """Returns data for this stream between the start and end dates.
@@ -367,6 +362,11 @@ class SensorDB(object):
         return r.text
     
 
+    def get_measurements(self):
+        """Gets all measurements.
+        Measurements are returned as an array of dictionaries. Each dictionary contains information on a single measurement."""
+        r = requests.get(self._host + "/measurements", cookies = self._cookie)
+        return json.loads(r.text)
     
 if (__name__ == '__main__'):
     sensor_test = SensorDB("http://127.0.0.1:2000")

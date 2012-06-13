@@ -17,11 +17,13 @@ print vars(test_db.user).keys()
 
 print test_db.user.description
 
+test_db.user.experiments[1].metadata_add("test_metadata", 20, description="This is test metadata")
+
 for experiment in test_db.experiments:
     print "Experiment Variables: " + repr(vars(experiment).keys())
     print "Experiment ID: " + experiment._id
     print "Experiment Name: " + experiment.name
-    print "Experiment Nodes: " + experiment.nodes
+    print "Experiment Nodes: " + repr(experiment.nodes)
 
 
 

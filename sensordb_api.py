@@ -49,7 +49,7 @@ class metaBase(object):
         Name and value are required.
         Optional arguments are 'description', 'start-ts' and 'end-ts'.
         """
-        payload = {"name": name, "value": value}
+        payload = {"id": self._id, "name": name, "value": value}
         optional_fields = ["description", "start-ts", "end-ts"] 
         for key in kwargs:
             if key in optional_fields:
@@ -57,13 +57,13 @@ class metaBase(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r = requests.get(self._parent_db._host + '/metadata/add', payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + '/metadata/add', data = payload, cookies = self._parent_db._cookie)
         return r.text
     
     def metadata_remove(self):
         """Removes the metadata for the current object."""
         payload = {"id": self._id, "name": self.name}
-        r = requests.get(self._parent_db._host + '/metadata/remove', payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + '/metadata/remove', data = payload, cookies = self._parent_db._cookie)
         if r.text == "":
             self._parent_db.get_session();
             return None

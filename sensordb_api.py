@@ -5,24 +5,86 @@ Low Level SensorDB functions
 import requests
 import json
 
-#TODO - Perform initialisation checks in the User, Experiment, Node and Stream objects to make sure the minimum required variables exist. 
 
-# Check that an object was initialised with all of the required variables
-def _field_check(check_object, required_fields):
-    for field in required_fields:
-        if not field in vars(check_object):
-            # Should this create a variable containing 'None' instead of raising an error?
-            raise Exception("Missing input field: " + field)
-
-class User(object):
-    def __init__(self, sensor_db, **kwargs):
-        self.__parent_db = sensor_db
+class metaBase(object):
+    """metaBase acts as a base class for other objects that contain sensorDB data.
+    It contains functions that interface with the metadata API.
+    """
+    
+    def __init__(self, sensor_db, required_fields, **kwargs):
+        """Performs initialisation common to all metaBase objects.
+        Requires a SensorDB instance and a list of required fields as arguments. Takes a dictionary of values."""
+        self.metadata = {}
+        self._parent_db = sensor_db
         for key in kwargs:
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
             
+        # Check that the object was initialised with all of the required variables
+        for field in required_fields:
+            if not field in vars(self):
+                # Should this create a variable containing 'None' instead of raising an error?
+                raise Exception("Missing input field: " + field)
+    
+    def update(self, page, id_field, valid_fields, **kwargs):
+        """This is a common method to update data.
+        Derivative classes should call this method to update data in the database.
+        'page' is the url of the page not including the hostname.
+        'id_field' is the name of the id field that the server is expecting (e.g. 'sid' for streams).
+        'valid_fields' is a list of field names that are valid for this object.
+        Keyword arguments should be of the form "field='value'". Multiple fields can be updated with one call to the function.
+        """
+
+        for key in kwargs:
+            if key in valid_fields:
+                requests.put(self._parent_db._host + page, {id_field: self._id, key: kwargs[key]}, cookies = self._parent_db._cookie);
+                # TODO - Check the return value for an error
+            else:
+                print "Warning - the field \"" + key + "\" is not recognised. It will be ignored."
+
+        return 
+    
+    def metadata_add(self, name, value, **kwargs):
+        """Adds a metadata entry to the current item.
+        Name and value are required.
+        Optional arguments are 'description', 'start-ts' and 'end-ts'.
+        """
+        payload = {"name": name, "value": value}
+        optional_fields = ["description", "start-ts", "end-ts"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        
+        r = requests.get(self._parent_db._host + '/metadata/add', payload, cookies = self._parent_db._cookie)
+        return r.text
+    
+    def metadata_remove(self):
+        """Removes the metadata for the current object."""
+        payload = {"id": self._id, "name": self.name}
+        r = requests.get(self._parent_db._host + '/metadata/remove', payload, cookies = self._parent_db._cookie)
+        if r.text == "":
+            self._parent_db.get_session();
+            return None
+        return r.text
+    
+    def metadata_retrieve(self):
+        """Retrieves and updates the metadata for the current object."""
+        r = requests.get(self._parent_db._host + '/metadata/' + self._id, cookies = self._parent_db._cookie)
+        self.metadata = json.loads(r.text)
+        return
+
+
+class User(metaBase):
+    """The User class.
+    This contains information about the user including a list of their experiments."""
+    def __init__(self, sensor_db, **kwargs):
+        """Initialises the Stream object.
+        Requires a SensorDB instance as an argument. Takes a dictionary of values."""
+        self.experiments = []
         required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at"]
-        _field_check(self, required_fields)
+        super(User, self).__init__(sensor_db, required_fields, **kwargs);
 
     def create_experiment(self, name, timezone, **kwargs):
         payload = {"name": name, "timezone": timezone}
@@ -33,46 +95,48 @@ class User(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r = requests.post(self.__parent_db._host + '/experiments', cookies = self.cookie, data = payload)
+        r = requests.post(self._parent_db._host + '/experiments', cookies = self._parent_db._cookie, data = payload)
         
         #TODO - examine r to determine success
         
         #Refresh object data - There should now be a new experiment 
-        self.__parent_db.get_session()
+        self._parent_db.get_session()
         
         return r.text
     
     def get_session(self):
-        return self.__parent_db.get_session(username = self.username)
+        """Retrieves session data from the server and updates the local copy."""
+        return self._parent_db.get_session(username = self.username)
     
     def get_tokens(self):
-        r = requests.get(self.__parent_db._host + "/tokens")
+        """Retrieves a list of tokens from the server."""
+        r = requests.get(self._parent_db._host + "/tokens", cookies = self._parent_db._cookie)
         return json.loads(r.text)
 
 
-class Experiment(object):
+class Experiment(metaBase):
+    """Experiment object class.
+    This class contains methods and data pertaining to experiments within SensorDB. 
+    """
     def __init__(self, sensor_db, **kwargs):
-        self.__parent_db = sensor_db
-        self.metadata = {} # Create blank metadata variable in case it is not in the json file
+        """Initialises the Experiment object.
+        Requires a SensorDB instance as an argument. Takes a dictionary of values."""
         self.nodes = []
-        for key in kwargs:
-            # Copy each variable in the dictionary as a variable
-            vars(self)[key] = kwargs[key]
-        
-        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "metadata", "uid", "timezone"]
-        _field_check(self, required_fields)
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "uid", "timezone"]
+        super(Experiment, self).__init__(sensor_db, required_fields, **kwargs);
         
           
     def update(self, **kwargs):
+        """Updates experiment data.
+        Arguments should be of the form "field='value'".
+        Multiple fields can be updated using a single call.
+        e.g. update(description="A new description", website="example.com/new")
+        """
         valid_fields = ["name", "website", "description", "picture", "access_restriction"]
-        
-        for key in kwargs:
-            if key in valid_fields:
-                requests.put(self.__parent_db._host + "/experiments", {key: kwargs[key]});
-                # TODO - Check the return value for an error
-        return 
+        return super(Experiment, self).update("/experiments", "eid", valid_fields, **kwargs)
     
     def create_node(self, name, **kwargs):
+        """Creates a node within the current experiment"""
         payload = {"name": name, "eid":self._id}
         optional_fields = ["description", "website", "picture", "lat", "lon", "alt"] 
         for key in kwargs:
@@ -81,64 +145,85 @@ class Experiment(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        requests.post(self.__parent_db._host + "/nodes", payload);
+        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
         
-        self.__parent_db.get_session()
+        self._parent_db.get_session()
         
         return
 
         
-class Node(object):
+class Node(metaBase):
     def __init__(self, sensor_db, **kwargs):
-        self.__parent_db = sensor_db
+        """Initialises the Node object.
+        Requires a SensorDB instance as an argument. Takes a dictionary of values."""
         self.streams = []
-        for key in kwargs:
-            # Copy each variable in the dictionary as a variable
-            vars(self)[key] = kwargs[key]
-
-        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "metadata", "uid", "eid", "alt", "lat", "lon"]
-        _field_check(self, required_fields)
+        required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "uid", "eid", "alt", "lat", "lon"]
+        super(Node, self).__init__(sensor_db, required_fields, **kwargs);
     
     
-    def create_stream(self, name, **kwargs):
-        payload = {"name": name, "nid":self._id}
-        optional_fields = ["description", "website", "picture", "mid"] 
+    def create_stream(self, name, mid, **kwargs):
+        """Creates a new stream in the current node.
+        Requires a name. Optional arguments are:
+        "description", "website", "picture" and "mid"."""
+        payload = {"name": name, "mid": mid, "nid":self._id}
+        optional_fields = ["description", "website", "picture"] 
         for key in kwargs:
             if key in optional_fields:
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        requests.post(self.__parent_db._host + "/nodes", payload);
+        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
+        self._parent_db.get_session();
+    
+    def update(self, **kwargs):
+        """Updates node data.
+        Arguments should be of the form "field='value'".
+        Multiple fields can be updated using a single call.
+        e.g. update(description="A new description", website="example.com/new")
+        """
+        valid_fields = ["website", "description", "picture", "lat", "lon", "alt", "eid"]
+        return super(Node, self).update("/nodes", "nid", valid_fields, **kwargs)
     
     def delete(self):
-        r = requests.delete(self.__parent_db._host + "/nodes", {"nid" : self.nid})
-        self.__parent_db.get_session()
+        """Deletes the current node."""
+        r = requests.delete(self._parent_db._host + "/nodes", {"nid" : self.nid}, cookies = self._parent_db._cookie)
+        self._parent_db.get_session();
         return r.text
       
 
-class Stream(object):
+class Stream(metaBase):
     def __init__(self, sensor_db, **kwargs):
-        self.__parent_db = sensor_db
-        for key in kwargs:
-            # Copy each variable in the dictionary as a variable
-            vars(self)[key] = kwargs[key]
-            
+        """Initialises the Stream object.
+        Requires a SensorDB instance as an argument. Takes a dictionary of values."""
         required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "mid", "uid", "nid"]
-        _field_check(self, required_fields)
+        super(Stream, self).__init__(sensor_db, required_fields, **kwargs);
+        return
 
+    def update(self, **kwargs):
+        """Updates stream data.
+        Arguments should be of the form "field='value'".
+        Multiple fields can be updated using a single call.
+        e.g. update(description="A new description", website="example.com/new")
+        """
+        valid_fields = ["name", "website", "description", "picture", "mid", "nid"]
+        return super(Stream, self).update("/streams", "sid", valid_fields, **kwargs)
 
     def get_measurements(self):
         """Gets measurement data associated with the stream."""
-        return requests.get(self.__parent_db._host + "/measurements", {"mid": self.mid})
+        r = requests.get(self._parent_db._host + "/measurements", {"mid": self.mid}, cookies = self._parent_db._cookie)
+        return json.loads(r.text)
 
     def get_data(self, start_date, end_date, level = None):
+        """Returns data for this stream between the start and end dates.
+        Optionally the aggregation level may be specified as one of the following:
+        raw, 1-minute, 5-minute, 15-minute, 1-hour, 3-hour, 6-hour, 1-day, 1-month, 1-year""" 
         payload = {"sd": start_date, "ed": end_date, "sid":self._id}
         
         if level != None:
             payload["level"] = level
         
-        r = requests.get(self.__parent_db._host + "/data", data = payload)
+        r = requests.get(self._parent_db._host + "/data", payload, cookies = self._parent_db._cookie)
 
         return json.loads(r.text)
 
@@ -152,7 +237,7 @@ class SensorDB(object):
         A host address must be specified. Optionally a username and password may be specified to log in immediately.
         """
         self._host = host
-        self.cookie = None
+        self._cookie = None
         self.user = None
         self.experiments = []
         self._nodes = []
@@ -160,33 +245,35 @@ class SensorDB(object):
         
         if(username and password):
             self.login(username, password)
-            
-    
-    
 
     def __convert_session(self, json_text):
-        #TODO - Check IDs against old data so new objects aren't created every time.
-        #TODO - Streams should be stored in their parent nodes, nodes should be 
-        #    stored in experiments, experiments should be stored in the user object.
+        """This function is used internally by the SensorDB class to construct session data object instances from JSON text."""
         
         if json_text == "":
-            return None
+            return False
         
         value_store = json.loads(json_text)
             
         if 'user' in value_store:
             print value_store['user']
             self.user = User(self, **value_store['user'])
+            #self.user.metadata_retrieve();
             
         if 'experiments' in value_store:
             self.experiments = []
             for experiment_data in value_store['experiments']:
-                self.experiments.append(Experiment(self, **experiment_data))
+                new_experiment = Experiment(self, **experiment_data)
+                #new_experiment.metadata_retrieve();
+                self.experiments.append(new_experiment)
+                
+                if(new_experiment.uid == self.user._id):
+                    self.user.experiments.append(new_experiment)
             
         if 'nodes' in value_store:
             self.nodes = []
             for node_data in value_store['nodes']:
                 new_node = Node(self, **node_data)
+                #new_node.metadata_retrieve();
                 
                 self._nodes.append(new_node)
                 
@@ -200,19 +287,19 @@ class SensorDB(object):
             self.streams = []
             for stream_data in value_store['streams']:
                 new_stream = Stream(self, **stream_data)
+                #new_stream.metadata_retrieve();
                 
                 self._streams.append(new_stream)
                 
                 for node in self._nodes:
                     if new_stream.nid == node._id:
                         node.streams.append(new_stream)
-                
-        
-        return
+                        
+        return True
     
     # --- User Management API ---
     
-    # logs in to the server and stores the login cookie
+    # logs in to the server and stores the login _cookie
     def login(self, username, password):
         """Log in to the SensorDB server.
         A username and password must be specified.
@@ -220,37 +307,35 @@ class SensorDB(object):
         """
         payload_login = {'name' : username, 'password':password}
         r = requests.post(self._host + '/login', data=payload_login)
-        self.cookie = r.cookies
+        self._cookie = r.cookies
         return self.__convert_session(r.text)
     
-    #logs out and deletes the cookie
+    #logs out and deletes the _cookie
     def logout(self):
         """Logs out the current user"""
         requests.post(self._host + '/logout');
-        self.cookie = None
+        self._cookie = None
         return
     
     #Registers a new user
-    def register(self, name, password, email, description = None, picture = None, website = None):
+    def register(self, name, password, email, **kwargs):
         """Registers a new user.
         Name, password and email are required. Description, picture and websites are all optional.
         """
-        payload = {'name' : name, 'password' : password, email : "email"}
+        payload = {'name' : name, 'password' : password, "email" : email}
         
-        if description != None:
-            payload['description'] = description
-        
-        if picture != None:
-            payload['picture'] = picture
-         
-        if website != None:
-            payload['website'] = website
+        optional_fields = ["description", "website", "picture"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
              
         r = requests.post(self._host + '/login', data = payload)
         return r.text
     
     def remove(self, username, password):
-        """Removes a regitered user.
+        """Removes a registered user.
         Username and Password are required.
         """
         r = requests.post(self._host + '/remove', data={'name' : username, 'password':password})
@@ -264,9 +349,9 @@ class SensorDB(object):
         Gets data for a particular user or the current user if none is specified
         """
         if username == None:
-            r = requests.get(self._host + '/session', cookies = self.cookie)
+            r = requests.get(self._host + '/session', cookies = self._cookie)
         else:
-            r = requests.get(self._host + '/session', cookies = self.cookie, data = {"username" : username})
+            r = requests.get(self._host + '/session', {"username" : username}, cookies = self._cookie)
         return self.__convert_session(r.text)
     
     def get_users(self):

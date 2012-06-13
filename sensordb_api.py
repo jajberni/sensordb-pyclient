@@ -58,6 +58,9 @@ class metaBase(object):
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
         r = requests.get(self._parent_db._host + '/metadata/add', params = payload, cookies = self._parent_db._cookie)
+        if r.text == "":
+            self._parent_db.get_session();
+            return None        
         return r.text
     
     def metadata_remove(self):

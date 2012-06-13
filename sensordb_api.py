@@ -90,6 +90,9 @@ class User(metaBase):
         super(User, self).__init__(sensor_db, required_fields, **kwargs);
 
     def create_experiment(self, name, timezone, **kwargs):
+        """Creates a new experiment as the current user.
+        Name and timezone are required.
+        Optional arguments are: "description", "website", "picture" and "public_access"."""
         payload = {"name": name, "timezone": timezone}
         optional_fields = ["description", "website", "picture", "public_access"] 
         for key in kwargs:
@@ -139,7 +142,8 @@ class Experiment(metaBase):
         return super(Experiment, self).update("/experiments", "eid", valid_fields, **kwargs)
     
     def create_node(self, name, **kwargs):
-        """Creates a node within the current experiment"""
+        """Creates a node within the current experiment.
+        A unique name is required. """
         payload = {"name": name, "eid":self._id}
         optional_fields = ["description", "website", "picture", "lat", "lon", "alt"] 
         for key in kwargs:

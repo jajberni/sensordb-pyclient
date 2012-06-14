@@ -152,9 +152,16 @@ class Experiment(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
-        
+        r=requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
         self._parent_db.get_session()
+        if r.status_code == 200:
+            value_store = json.loads(r.text)
+            #print("Node creation: " + r.text)
+            new_node = Node(self, **value_store)
+            new_node._parent_db = self._parent_db
+            return new_node
+        else:
+            return None
         
         return
 
@@ -178,10 +185,19 @@ class Node(metaBase):
             if key in optional_fields:
                 payload[key] = kwargs[key]
             else:
-                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
-        
-        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."        
+        r=requests.post(self._parent_db._host + "/streams", payload, cookies = self._parent_db._cookie);
         self._parent_db.get_session();
+        #print ("Creating node: " + r.text)
+        if r.status_code == 200:
+            value_store = json.loads(r.text)
+            #print("Node creation: " + r.text)
+            new_stream = Stream(self, **value_store)
+            new_stream._parent_db = self._parent_db
+            return new_stream
+        else:
+            return None
+        
     
     def update(self, **kwargs):
         """Updates node data.
@@ -262,7 +278,7 @@ class SensorDB(object):
         value_store = json.loads(json_text)
             
         if 'user' in value_store:
-            print value_store['user']
+            #print value_store['user']
             self.user = User(self, **value_store['user'])
             self.user.metadata_retrieve();
             

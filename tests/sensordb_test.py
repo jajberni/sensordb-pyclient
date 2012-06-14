@@ -22,16 +22,20 @@ print test_db.user.description
 
 #test_db.user.experiments[0].metadata_add("test_metadata", "Testing the metadata", description="This is test metadata")
 
-measurements = test_db.get_measurements()
+#measurements = test_db.get_measurements()
 
-test_db.experiments[1].nodes[0].create_stream("TestStream", measurements[0]["_id"], description="A Test stream")
+#test_db.experiments[1].nodes[0].create_stream("TestStream", measurements[0]["_id"], description="A Test stream")
 
 for experiment in test_db.experiments:
     print "Experiment Variables: " + repr(vars(experiment).keys())
     print "Experiment ID: " + experiment._id
     print "Experiment Name: " + experiment.name
-    print "Experiment Nodes: " + repr(experiment.nodes)
+    #print "Experiment Nodes: " + repr(experiment.nodes)
     print "Metadata: " + repr(experiment.metadata)
+    for node in experiment.nodes:
+        print "Node Name: " + node.name + " ID: " + node._id
+        for stream in node.streams:
+            print "Stream Name: " + stream.name
 
 
 

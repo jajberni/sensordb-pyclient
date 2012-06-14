@@ -37,7 +37,7 @@ class metaBase(object):
 
         for key in kwargs:
             if key in valid_fields:
-                requests.put(self._parent_db._host + page, data={id_field: self._id, key: kwargs[key]}, cookies = self._parent_db._cookie);
+                requests.put(self._parent_db._host + page, {id_field: self._id, key: kwargs[key]}, cookies = self._parent_db._cookie);
                 # TODO - Check the return value for an error
             else:
                 print "Warning - the field \"" + key + "\" is not recognised. It will be ignored."
@@ -151,20 +151,12 @@ class Experiment(metaBase):
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
-        #print("Payload: " + repr(payload))
-        r = requests.post(self._parent_db._host + "/nodes", data=payload, cookies = self._parent_db._cookie);
-        self._parent_db.get_session()
-        if r.status_code == 200:
-            value_store = json.loads(r.text)
-            #print("Node creation: " + r.text)
-            new_node = Node(self, **value_store)
-            return new_node
-        else:
-            return None
-        #print (r.text)
-        #self._parent_db.get_session()
         
-        #return #new_node
+        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
+        
+        self._parent_db.get_session()
+        
+        return
 
         
 class Node(metaBase):
@@ -180,16 +172,15 @@ class Node(metaBase):
         """Creates a new stream in the current node.
         Requires a name. Optional arguments are:
         "description", "website", "picture" and "mid"."""
-        payload = {"name": name, "mid": mid, "nid":str(self._id)}
-        
+        payload = {"name": name, "mid": mid, "nid":self._id}
         optional_fields = ["description", "website", "picture"] 
         for key in kwargs:
             if key in optional_fields:
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
-        r=requests.post(self._parent_db._host + "/streams", data=payload, cookies = self._parent_db._cookie)
-        #print("Stream creation: " + r.text)
+        
+        requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
         self._parent_db.get_session();
     
     def update(self, **kwargs):
@@ -203,7 +194,7 @@ class Node(metaBase):
     
     def delete(self):
         """Deletes the current node."""
-        r = requests.delete(self._parent_db._host + "/nodes", data={"nid" : str(self._id)}, cookies = self._parent_db._cookie)
+        r = requests.delete(self._parent_db._host + "/nodes", {"nid" : self.nid}, cookies = self._parent_db._cookie)
         self._parent_db.get_session();
         return r.text
       
@@ -239,7 +230,7 @@ class Stream(metaBase):
         if level != None:
             payload["level"] = level
         
-        r = requests.get(self._parent_db._host + "/data", data=payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + "/data", payload, cookies = self._parent_db._cookie)
 
         return json.loads(r.text)
 
@@ -271,7 +262,7 @@ class SensorDB(object):
         value_store = json.loads(json_text)
             
         if 'user' in value_store:
-            #print value_store['user']
+            print value_store['user']
             self.user = User(self, **value_store['user'])
             self.user.metadata_retrieve();
             
@@ -374,11 +365,7 @@ class SensorDB(object):
         """Gets the user list."""
         r = requests.get(self._host + "/users")
         return r.text
-        
-    def get_measurements(self):
-        """Gets measurement data associated with the database."""
-        r = requests.get(self._host + "/measurements", cookies = self._parent_db._cookie)
-        return json.loads(r.text)
+    
 
     
 if (__name__ == '__main__'):

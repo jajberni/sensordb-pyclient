@@ -63,9 +63,9 @@ class metaBase(object):
             return None        
         return r.text
     
-    def metadata_remove(self):
-        """Removes the metadata for the current object."""
-        payload = {"id": self._id, "name": self.name}
+    def metadata_remove(self, name):
+        """Removes the metadata for the current object with the name provided."""
+        payload = {"id": self._id, "name": name}
         r = requests.get(self._parent_db._host + '/metadata/remove', params = payload, cookies = self._parent_db._cookie)
         if r.text == "":
             self._parent_db.get_session();

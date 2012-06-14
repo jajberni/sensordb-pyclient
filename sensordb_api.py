@@ -210,7 +210,7 @@ class Node(metaBase):
     
     def delete(self):
         """Deletes the current node."""
-        r = requests.delete(self._parent_db._host + "/nodes", {"nid" : self.nid}, cookies = self._parent_db._cookie)
+        r = requests.delete(self._parent_db._host + "/nodes", data = {"nid" : self._id}, cookies = self._parent_db._cookie)
         self._parent_db.get_session();
         return r.text
       
@@ -231,6 +231,12 @@ class Stream(metaBase):
         """
         valid_fields = ["name", "website", "description", "picture", "mid", "nid"]
         return super(Stream, self).update("/streams", "sid", valid_fields, **kwargs)
+        
+    def delete(self):
+        """Deletes the current stream."""
+        r = requests.delete(self._parent_db._host + "/streams", data = {"sid" : self._id}, cookies = self._parent_db._cookie)
+        self._parent_db.get_session();
+        return r.text
 
     def get_measurements(self):
         """Gets measurement data associated with the stream."""

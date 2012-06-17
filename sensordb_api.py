@@ -164,6 +164,12 @@ class Experiment(metaBase):
             return None
         
         return
+        
+    def delete(self):
+        """Deletes the current experiment."""
+        r = requests.delete(self._parent_db._host + "/experiments", params = {"eid" : str(self._id)}, cookies = self._parent_db._cookie)
+        self._parent_db.get_session();
+        return r.text
 
         
 class Node(metaBase):

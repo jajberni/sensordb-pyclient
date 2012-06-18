@@ -59,7 +59,8 @@ class metaBase(object):
         
         r = requests.get(self._parent_db._host + '/metadata/add', params = payload, cookies = self._parent_db._cookie)
         if r.text == "":
-            self._parent_db.get_session();
+            #self._parent_db.get_session();
+            self.metadata_retrieve()
             return None        
         return r.text
     
@@ -68,7 +69,8 @@ class metaBase(object):
         payload = {"id": self._id, "name": name}
         r = requests.get(self._parent_db._host + '/metadata/remove', params = payload, cookies = self._parent_db._cookie)
         if r.text == "":
-            self._parent_db.get_session();
+            #self._parent_db.get_session();
+            self.metadata_retrieve()
             return None
         return r.text
     
@@ -153,12 +155,13 @@ class Experiment(metaBase):
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
         r=requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
-        self._parent_db.get_session()
+        #self._parent_db.get_session()
         if r.status_code == 200:
             value_store = json.loads(r.text)
             #print("Node creation: " + r.text)
             new_node = Node(self, **value_store)
             new_node._parent_db = self._parent_db
+            self.nodes.append(new_node)
             return new_node
         else:
             return None
@@ -193,13 +196,14 @@ class Node(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."        
         r = requests.post(self._parent_db._host + "/streams", payload, cookies = self._parent_db._cookie);
-        self._parent_db.get_session();
+        #self._parent_db.get_session();
         #print ("Creating node: " + r.text)
         if r.status_code == 200:
             value_store = json.loads(r.text)
             #print("Node creation: " + r.text)
             new_stream = Stream(self, **value_store)
             new_stream._parent_db = self._parent_db
+            self.streams.append(new_stream)
             return new_stream
         else:
             return None
@@ -253,9 +257,10 @@ class Stream(metaBase):
         if level != None:
             payload["level"] = level
         
-        r = requests.get(self._parent_db._host + "/data", payload, cookies = self._parent_db._cookie)
+        r = requests.get(self._parent_db._host + "/data", params=payload, cookies = self._parent_db._cookie)
+        return r #The data output is not json compatible, so I had to change this. 
 
-        return json.loads(r.text)
+        #return json.loads(r.text)
 
 class SensorDB(object):
     """The SensorDB class handles the interface to a sensorDB server 

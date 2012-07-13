@@ -248,11 +248,28 @@ class Stream(metaBase):
         self._parent_db.get_session();
         return r.text
 
-    def get_data(self, start_date, end_date, level = None):
-        """Returns data for this stream between the start and end dates.
+    def get_data(self, start_date = None, end_date = None, level = None):
+        """Returns data for this stream.
+        Start date may be specified. If it is not the earliest date is used.
+        End date may be specified. If it is not the latest date is used.
         Optionally the aggregation level may be specified as one of the following:
         raw, 1-minute, 5-minute, 15-minute, 1-hour, 3-hour, 6-hour, 1-day, 1-month, 1-year""" 
-        payload = {"sd": start_date, "ed": end_date, "sid":self._id}
+        payload = {"sid":self._id}
+        
+        '''
+        optional_fields = ["sd", "ed", "level"] 
+        for key in kwargs:
+            if key in optional_fields:
+                payload[key] = kwargs[key]
+            else:
+                print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        '''
+        
+        if start_date != None:
+            payload["sd"] = start_date
+        
+        if end_date != None:
+            payload["ed"] = end_date
         
         if level != None:
             payload["level"] = level
@@ -366,7 +383,7 @@ class SensorDB(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
              
-        r = requests.post(self._host + '/login', data = payload)
+        r = requests.post(self._host + '/register', data = payload)
         return r.text
     
     def remove(self, username, password):
@@ -402,9 +419,9 @@ class SensorDB(object):
         return json.loads(r.text)
     
 if (__name__ == '__main__'):
-    sensor_test = SensorDB("http://127.0.0.1:2000")
+    sensor_test = SensorDB("http://phenonet.com:9001")
     
-    #print sensor_test.register('username', 'password', 'username@example.com')
+    #print sensor_test.register('username', 'password', 'user@example.com')
     
     print sensor_test.login('username', 'password')
     

@@ -77,7 +77,16 @@ class metaBase(object):
     def metadata_retrieve(self):
         """Retrieves and updates the metadata for the current object."""
         r = requests.get(self._parent_db._host + '/metadata/retrieve/' + self._id, cookies = self._parent_db._cookie)        
-        self.metadata = json.loads(r.text)
+        #self.metadata = json.loads(r.text)
+        #self.metadata = r.json
+        self.metadata = dict()
+        
+        # Create a dictionary of metadata values
+        # This allows the metadata to be retrieved by name
+        # To access the metadata as a list use metadata.values()
+        for metavalue in r.json:
+            self.metadata[metavalue['name']] = metavalue
+        
         return
 
 
@@ -105,12 +114,23 @@ class User(metaBase):
         
         r = requests.post(self._parent_db._host + '/experiments', cookies = self._parent_db._cookie, data = payload)
         
-        #TODO - examine r to determine success
+        returned_json = r.json
         
-        #Refresh object data - There should now be a new experiment 
-        self._parent_db.get_session()
-        
-        return r.text
+        if returned_json is not None:
+            # Create experiment object from returned data
+            new_experiment = Experiment(self._parent_db, **returned_json)
+            
+            # Retrieving metadata is not strictly necessary for a new experiment. It should have no metadata. 
+            new_experiment.metadata_retrieve();
+            
+            # Add the new experiment to parent objects
+            self.experiments.append(new_experiment)
+            self._parent_db.experiments.append(new_experiment)
+            
+            return new_experiment
+
+        # The experiment was not successfully created
+        return None
     
     def get_session(self):
         """Retrieves session data from the server and updates the local copy."""
@@ -119,7 +139,8 @@ class User(metaBase):
     def get_tokens(self):
         """Retrieves a list of tokens from the server."""
         r = requests.get(self._parent_db._host + "/tokens", cookies = self._parent_db._cookie)
-        return json.loads(r.text)
+        #return json.loads(r.text)
+        return r.json
 
 
 class Experiment(metaBase):
@@ -140,7 +161,7 @@ class Experiment(metaBase):
         Multiple fields can be updated using a single call.
         e.g. update(description="A new description", website="example.com/new")
         """
-        valid_fields = ["name", "website", "description", "picture", "access_restriction"]
+        valid_fields = ["name", "website", "description", "picture", "public_access"]
         return super(Experiment, self).update("/experiments", "eid", valid_fields, **kwargs)
     
     def create_node(self, name, **kwargs):
@@ -157,7 +178,9 @@ class Experiment(metaBase):
         r=requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
         #self._parent_db.get_session()
         if r.status_code == 200:
-            value_store = json.loads(r.text)
+            #value_store = json.loads(r.text)
+            value_store = r.json
+            
             #print("Node creation: " + r.text)
             new_node = Node(self, **value_store)
             new_node._parent_db = self._parent_db
@@ -199,7 +222,8 @@ class Node(metaBase):
         #self._parent_db.get_session();
         #print ("Creating node: " + r.text)
         if r.status_code == 200:
-            value_store = json.loads(r.text)
+            #value_store = json.loads(r.text)
+            value_store = r.json
             #print("Node creation: " + r.text)
             new_stream = Stream(self, **value_store)
             new_stream._parent_db = self._parent_db
@@ -298,13 +322,14 @@ class SensorDB(object):
         if(username and password):
             self.login(username, password)
 
-    def __convert_session(self, json_text):
+    def __convert_session(self, json_data):
         """This function is used internally by the SensorDB class to construct session data object instances from JSON text."""
         
-        if json_text == "":
+        if json_data == None:
             return False
         
-        value_store = json.loads(json_text)
+        #value_store = json.loads(json_text)
+        value_store = json_data
             
         if 'user' in value_store:
             #print value_store['user']
@@ -360,7 +385,7 @@ class SensorDB(object):
         payload_login = {'name' : username, 'password':password}
         r = requests.post(self._host + '/login', data=payload_login)
         self._cookie = r.cookies
-        return self.__convert_session(r.text)
+        return self.__convert_session(r.json)
     
     #logs out and deletes the _cookie
     def logout(self):
@@ -404,7 +429,7 @@ class SensorDB(object):
             r = requests.get(self._host + '/session', cookies = self._cookie)
         else:
             r = requests.get(self._host + '/session', {"username" : username}, cookies = self._cookie)
-        return self.__convert_session(r.text)
+        return self.__convert_session(r.json)
     
     def get_users(self):
         """Gets the user list."""

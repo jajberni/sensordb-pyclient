@@ -115,6 +115,9 @@ class User(metaBase):
         r = requests.post(self._parent_db._host + '/experiments', cookies = self._parent_db._cookie, data = payload)
         
         returned_json = r.json
+
+        if returned_json.has_key("errors"):
+            raise Exception(returned_json["errors"])
         
         if returned_json is not None:
             # Create experiment object from returned data

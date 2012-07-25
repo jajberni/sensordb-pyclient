@@ -384,6 +384,9 @@ class SensorDB(object):
         """
         payload_login = {'name' : username, 'password':password}
         r = requests.post(self._host + '/login', data=payload_login)
+      
+        if not (r.status_code in range (200,300)):
+            raise Exception("Login failed!")
         self._cookie = r.cookies
         return self.__convert_session(r.json)
     

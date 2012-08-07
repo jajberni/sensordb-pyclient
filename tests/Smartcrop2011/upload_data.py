@@ -25,8 +25,8 @@ sensor_list = read_csv(sensor_list_file, parse_dates = [4, 5], dayfirst = True)
 experiment_names = set()
 for experiment in sensor_db.experiments:
     # DEBUG - delete experiment
-    #experiment.delete()
-    experiment_names.add(experiment.name)
+    experiment.delete()
+    #experiment_names.add(experiment.name)
 
 ''' Note - This code is written assuming that a single trial is only ever on a single site'''
 
@@ -64,23 +64,76 @@ sensor_db.get_session()
 
 existing_nodes = dict()
 
+experiments = dict()
+
 for experiment in sensor_db.experiments:
-    existing_nodes[experiment.name] = set()
+    existing_nodes[experiment.name] = dict()
+    
+    # Create a dict to reference the experiments by name
+    experiments[experiment.name] = experiment
     
     for node in experiment.nodes:
-        existing_nodes[experiment.name].add(node.name)
+        existing_nodes[experiment.name][node.name] = node
+
+
+for measurement in sensor_db.get_measurements():
+    if measurement['name'] == 'Celsius':
+        temp_id = measurement['_id']
+        break
+
 
 for node_index in sensor_list.index:
     # Name should be Genotype, Range, Plot. e.g. ABC-R01P01
-    node_name = sensor_list["Genotype"][node_index] + "-R{:02}".format(sensor_list["Range"][node_index]) + "P{:02}".format(sensor_list["Plot"][node_index])
+    node_name = str(sensor_list["Genotype"][node_index])
+    if node_name.endswith('+'):
+        node_name = node_name[:len(node_name)-1]
+        node_name += 'plus'
     
-    # skip existing added nodes
-    if node_name in existing_nodes:
+    elif node_name.endswith('-'):
+        node_name = node_name[:len(node_name)-1]
+        node_name += 'minus'
+    
+    node_name += "-R{:02}".format(sensor_list["Range"][node_index]) + "P{:02}".format(sensor_list["Plot"][node_index])
+    trial_name = sensor_list["TrialCode"][node_index]
+    
+    # add the node if it doesn't exist
+    if node_name not in existing_nodes[trial_name]:
+    
+        node = experiments[trial_name].create_node(node_name)
+        
+        if node is None:
+            print "Error creating node: " + node_name
+            continue
+
+        existing_nodes[trial_name][node_name] = node
+    
+        node.metadata_add("Genotype", sensor_list["Genotype"][node_index])    
+        node.metadata_add("Site", sensor_list["Site"][node_index])
+        node.metadata_add("Range", sensor_list["Range"][node_index])
+        node.metadata_add("Plot", sensor_list["Plot"][node_index])
+        node.metadata_add("Replicate", sensor_list["Replicate"][node_index])
+        node.metadata_add("Treatment", sensor_list["Treatment"][node_index])
+    
+    else:
+        node = existing_nodes[trial_name][node_name]
+        
+    position = str(sensor_list['Pos'][node_index]).upper()
+    serial = str(sensor_list['Serial Number'][node_index])
+    
+    canopy_stream = node.create_stream("CanopyTemp" + position + "-" + serial, temp_id)
+    ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
+    # Add other streams here
+    #Humiditiy
+    
+    if canopy_stream is None or ambient_stream is None:
+        # Streams are already created?
         continue
     
+    start_time = time.mktime(sensor_list["StartDate"])
+    end_time = time.mktime(sensor_list[""])
+    
+    canopy_stream.metadata_add()
     
     
-    existing_nodes.add(node_name)
-    
-    
+for sensor_index in sensor_list.index:
     

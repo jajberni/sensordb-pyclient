@@ -81,9 +81,11 @@ class metaBase(object):
         #self.metadata = r.json
         self.metadata = dict()
         
-        # Create a dictionary of metadata values
-        # This allows the metadata to be retrieved by name
-        # To access the metadata as a list use metadata.values()
+        """
+        Create a dictionary of metadata values.
+        This allows the metadata to be retrieved by name.
+        To access the metadata as a list use metadata.values()
+        """
         for metavalue in r.json:
             self.metadata[metavalue['name']] = metavalue
         
@@ -187,12 +189,14 @@ class Experiment(metaBase):
             #print("Node creation: " + r.text)
             new_node = Node(self, **value_store)
             new_node._parent_db = self._parent_db
+            
             self.nodes.append(new_node)
+            self._parent_db._nodes.append(new_node)
+            
             return new_node
-        else:
-            return None
+
+        return None
         
-        return
         
     def delete(self):
         """Deletes the current experiment."""
@@ -292,13 +296,13 @@ class Stream(metaBase):
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         '''
         
-        if start_date != None:
+        if start_date is not None:
             payload["sd"] = start_date
         
-        if end_date != None:
+        if end_date is not None:
             payload["ed"] = end_date
         
-        if level != None:
+        if level is not None:
             payload["level"] = level
         
         r = requests.get(self._parent_db._host + "/data", params=payload, cookies = self._parent_db._cookie)
@@ -328,7 +332,7 @@ class SensorDB(object):
     def __convert_session(self, json_data):
         """This function is used internally by the SensorDB class to construct session data object instances from JSON text."""
         
-        if json_data == None:
+        if json_data is None:
             return False
         
         #value_store = json.loads(json_text)
@@ -431,7 +435,7 @@ class SensorDB(object):
         """Gets session data.
         Gets data for a particular user or the current user if none is specified
         """
-        if username == None:
+        if username is None:
             r = requests.get(self._host + '/session', cookies = self._cookie)
         else:
             r = requests.get(self._host + '/session', {"username" : username}, cookies = self._cookie)

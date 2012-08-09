@@ -2,6 +2,7 @@ from pandas import read_csv
 import sys
 import time
 import requests
+from os.path import exists
 
 sys.path.append('../..')
 
@@ -12,14 +13,14 @@ username = ""
 password = ""
 
 sensor_list_file = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/SmartField SensorList.csv"
-
+sensor_data_location = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/Analysis/Results/Checked/"
 
 ''' Connect to SensorDB '''
 sensor_db = SensorDB(host, username, password)
 
 ''' Create experiments ''' 
 # Read in the sensor list
-sensor_list = read_csv(sensor_list_file, parse_dates = [4, 5], dayfirst = True)
+sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
 
 # Create a list of unique experiment names
 experiment_names = set()
@@ -83,8 +84,15 @@ for measurement in sensor_db.get_measurements():
 
 
 for node_index in sensor_list.index:
+
+    # If the sensor has no data, skip it
+    file_name = sensor_data_location + str(sensor_list["SerialName"][node_index]) + ".csv"
+    if not exists(file_name):
+        continue
+
     # Name should be Genotype, Range, Plot. e.g. ABC-R01P01
     node_name = str(sensor_list["Genotype"][node_index])
+    
     if node_name.endswith('+'):
         node_name = node_name[:len(node_name)-1]
         node_name += 'plus'
@@ -123,17 +131,20 @@ for node_index in sensor_list.index:
     canopy_stream = node.create_stream("CanopyTemp" + position + "-" + serial, temp_id)
     ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
     # Add other streams here
-    #Humiditiy
+    # Humidity?
     
     if canopy_stream is None or ambient_stream is None:
         # Streams are already created?
         continue
     
-    start_time = time.mktime(sensor_list["StartDate"])
-    end_time = time.mktime(sensor_list[""])
+    start_time = time.mktime(sensor_list["StartDate"][node_index].timetuple())
+    end_time = time.mktime(sensor_list["EndDate"][node_index].timetuple())
     
-    canopy_stream.metadata_add()
+    canopy_stream.metadata_add("Sensor", serial, start_ts=start_time, end_ts=end_time)
+    canopy_stream.metadata_add("Position", position)
     
+    ambient_stream.metadata_add("Sensor", serial, start_ts=start_time, end_ts=end_time)
+    ambient_stream.metadata_add("Position", position)
     
-for sensor_index in sensor_list.index:
-    
+    #Read in 
+    #sensor_data = read_csv(file_name, parse_dates = ["StartDate", "EndDate"], dayfirst = True)

@@ -47,15 +47,23 @@ class metaBase(object):
     def metadata_add(self, name, value, **kwargs):
         """Adds a metadata entry to the current item.
         Name and value are required.
-        Optional arguments are 'description', 'start-ts' and 'end-ts'.
+        Optional arguments are 'description', 'start_ts' and 'end_ts'.
         """
         payload = {"id": self._id, "name": name, "value": value}
-        optional_fields = ["description", "start-ts", "end-ts"] 
+        optional_fields = ["description", "start_ts", "end_ts"] 
         for key in kwargs:
             if key in optional_fields:
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
+        
+        
+        # Because python does not allow hyphens in variable names, underscore is accepted and replaced with a hyphen
+        if "start_ts" in payload:
+            payload["start-ts"] = payload.pop("start_ts")
+        
+        if "end_ts" in payload:
+            payload["end-ts"] = payload.pop("end_ts")
         
         r = requests.get(self._parent_db._host + '/metadata/add', params = payload, cookies = self._parent_db._cookie)
         if r.text == "":

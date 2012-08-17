@@ -16,20 +16,26 @@ sensor_list_file = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/SmartFiel
 sensor_data_location = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/Analysis/Results/Checked/"
 
 ''' Connect to SensorDB '''
+print "Connecting to Database"
 sensor_db = SensorDB(host, username, password)
 
 ''' Create experiments ''' 
 # Read in the sensor list
+print "Loading Sensor List"
 sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
 
 # Create a list of unique experiment names
 experiment_names = set()
+#print "Checking Experiments"
+print "Clearing Experiments"
 for experiment in sensor_db.experiments:
     # DEBUG - delete experiment
     experiment.delete()
     #experiment_names.add(experiment.name)
 
 ''' Note - This code is written assuming that a single trial is only ever on a single site'''
+
+print "Creating Trials"
 
 # For each unique trial
 for trial in sensor_list["TrialCode"].unique():
@@ -38,8 +44,7 @@ for trial in sensor_list["TrialCode"].unique():
     # Get the site
     sites = sensor_list.ix[sensor_list["TrialCode"] == trial, "Site"].unique()
     
-    print trial
-    print sites
+    print trial +" "+ sites
     
     if sites.size > 1:
         print "\"" + trial + "\" has multiple sites. This is not currently handled. Only the first site will be used"
@@ -47,6 +52,7 @@ for trial in sensor_list["TrialCode"].unique():
     
     # Skip this trial if it already exists as an experiment
     if trial in experiment_names:
+        print "Trial already exists"
         continue
     
     # TODO - determine the timezone from the site. This would require a dictionary of sites.
@@ -58,6 +64,7 @@ for trial in sensor_list["TrialCode"].unique():
     experiment.metadata_add("site", sites[0])
     #experiment.metadata_add("Sites", str(sites))
 
+    print "Trial Created"
     
 ''' Add nodes to experiments '''
 
@@ -67,6 +74,7 @@ existing_nodes = dict()
 
 experiments = dict()
 
+print "Creating Experiments"
 for experiment in sensor_db.experiments:
     existing_nodes[experiment.name] = dict()
     
@@ -77,12 +85,14 @@ for experiment in sensor_db.experiments:
         existing_nodes[experiment.name][node.name] = node
 
 
+print "Getting Measurement IDs"
 for measurement in sensor_db.get_measurements():
     if measurement['name'] == 'Celsius':
         temp_id = measurement['_id']
         break
 
 
+print "Creating Nodes"
 for node_index in sensor_list.index:
 
     # If the sensor has no data, skip it
@@ -146,5 +156,57 @@ for node_index in sensor_list.index:
     ambient_stream.metadata_add("Sensor", serial, start_ts=start_time, end_ts=end_time)
     ambient_stream.metadata_add("Position", position)
     
-    #Read in 
-    #sensor_data = read_csv(file_name, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
+    #Read in Sensor Data
+    sensor_data = read_csv(file_name, parse_dates = ["datetimeread"], dayfirst = True)
+    
+    data = dict()
+    
+    canopy_token = str(canopy_stream.token)
+    ambient_token = str(ambient_stream.token)
+    
+    data[canopy_token] = dict()
+    data[ambient_token] = dict()
+    
+    count = 0
+    
+    for line_index in sensor_data.index:
+        
+        # A single post cannot be larger than 200000 characters.
+        # If there is enough data in the file then it can go over this limit.
+        # Therefore the data should be separated into multiple posts   
+        if (len(str(data)) > 100000):
+            r = sensor_db.post_data(data)
+            
+            try:
+                count += r["length"]
+            except:
+                print "Error posting data for node " + node_name
+                #continue
+            
+            data = dict()
+            
+            data[canopy_token] = dict()
+            data[ambient_token] = dict()
+        
+        # Get the data timestamp in seconds since epoch and store it as a string
+        timestamp = "{:d}".format(int(time.mktime(sensor_data["datetimeread"][line_index].timetuple())))
+        
+        
+        data[canopy_token][timestamp] = "{:.2f}".format(sensor_data["irtemp"][line_index])
+        data[ambient_token][timestamp] = "{:.2f}".format(sensor_data["ambienttemp"][line_index])
+    
+    r = sensor_db.post_data(data)
+    
+    try:
+        count += r["length"]
+    except:
+        print "Error posting data for node " + node_name
+        #continue
+    
+    
+    if count != sensor_data.index.size:
+        print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size)  
+    
+
+    
+    

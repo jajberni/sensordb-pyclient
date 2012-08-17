@@ -461,6 +461,14 @@ class SensorDB(object):
         r = requests.get(self._host + "/measurements", cookies = self._cookie)
         return json.loads(r.text)
     
+    def post_data(self, data):
+        """Posts data to the Database.
+        Data should be a dictionary that contains stream data."""
+        payload = {"data":str(data).replace("'","\"")}
+        
+        r = requests.post(self._host + '/data', payload, cookies = self._cookie)
+        return r.json
+    
 if (__name__ == '__main__'):
     sensor_test = SensorDB("http://phenonet.com:9001")
     

@@ -19,7 +19,7 @@ sensor_data_location = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/Analy
 print "Connecting to Database"
 sensor_db = SensorDB(host, username, password)
 
-''' Create experiments ''' 
+''' Create experiments '''
 # Read in the sensor list
 print "Loading Sensor List"
 sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
@@ -204,9 +204,10 @@ for node_index in sensor_list.index:
         #continue
     
     
-    if count != sensor_data.index.size:
-        print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size)  
-    
+    if count != (sensor_data.index.size * 2):
+        print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size * 2)
+    else:
+        print "Posted data for " + node_name
 
     
     

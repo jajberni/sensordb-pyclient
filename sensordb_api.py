@@ -444,9 +444,9 @@ class SensorDB(object):
         Gets data for a particular user or the current user if none is specified
         """
         if username is None:
-            r = requests.get(self._host + '/session', cookies = self._cookie)
+            r = requests.get(self._host + '/session2', cookies = self._cookie)
         else:
-            r = requests.get(self._host + '/session', {"username" : username}, cookies = self._cookie)
+            r = requests.get(self._host + '/session2', {"username" : username}, cookies = self._cookie)
         return self.__convert_session(r.json)
     
     def get_users(self):

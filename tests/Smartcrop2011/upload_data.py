@@ -24,14 +24,18 @@ sensor_db = SensorDB(host, username, password)
 print "Loading Sensor List"
 sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
 
-# Create a list of unique experiment names
-experiment_names = set()
-#print "Checking Experiments"
+
 print "Clearing Experiments"
 for experiment in sensor_db.experiments:
     # DEBUG - delete experiment
     experiment.delete()
-    #experiment_names.add(experiment.name)
+
+
+# Create a list of unique experiment names
+experiment_names = set()
+print "Checking Experiments"
+for experiment in sensor_db.experiments:
+    experiment_names.add(experiment.name)
 
 ''' Note - This code is written assuming that a single trial is only ever on a single site'''
 
@@ -103,6 +107,10 @@ for node_index in sensor_list.index:
     # Name should be Genotype, Range, Plot. e.g. ABC-R01P01
     node_name = str(sensor_list["Genotype"][node_index])
     
+    '''
+    # Convert +/- to 'plus'/'minus'
+    
+    
     if node_name.endswith('+'):
         node_name = node_name[:len(node_name)-1]
         node_name += 'plus'
@@ -110,6 +118,7 @@ for node_index in sensor_list.index:
     elif node_name.endswith('-'):
         node_name = node_name[:len(node_name)-1]
         node_name += 'minus'
+    '''
     
     node_name += "-R{:02}".format(sensor_list["Range"][node_index]) + "P{:02}".format(sensor_list["Plot"][node_index])
     trial_name = sensor_list["TrialCode"][node_index]
@@ -139,22 +148,22 @@ for node_index in sensor_list.index:
     serial = str(sensor_list['Serial Number'][node_index])
     
     canopy_stream = node.create_stream("CanopyTemp" + position + "-" + serial, temp_id)
-    ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
+    #ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
     # Add other streams here
     # Humidity?
     
-    if canopy_stream is None or ambient_stream is None:
+    if canopy_stream is None:# or ambient_stream is None:
         # Streams are already created?
         continue
     
     start_time = time.mktime(sensor_list["StartDate"][node_index].timetuple())
     end_time = time.mktime(sensor_list["EndDate"][node_index].timetuple())
     
-    canopy_stream.metadata_add("Sensor", serial, start_ts=start_time, end_ts=end_time)
+    canopy_stream.metadata_add("Sensor", serial, start_ts=int(start_time), end_ts=int(end_time))
     canopy_stream.metadata_add("Position", position)
     
-    ambient_stream.metadata_add("Sensor", serial, start_ts=start_time, end_ts=end_time)
-    ambient_stream.metadata_add("Position", position)
+    #ambient_stream.metadata_add("Sensor", serial, start_ts=int(start_time), end_ts=int(end_time))
+    #ambient_stream.metadata_add("Position", position)
     
     #Read in Sensor Data
     sensor_data = read_csv(file_name, parse_dates = ["datetimeread"], dayfirst = True)
@@ -162,10 +171,10 @@ for node_index in sensor_list.index:
     data = dict()
     
     canopy_token = str(canopy_stream.token)
-    ambient_token = str(ambient_stream.token)
+    #ambient_token = str(ambient_stream.token)
     
     data[canopy_token] = dict()
-    data[ambient_token] = dict()
+    #data[ambient_token] = dict()
     
     count = 0
     
@@ -186,14 +195,14 @@ for node_index in sensor_list.index:
             data = dict()
             
             data[canopy_token] = dict()
-            data[ambient_token] = dict()
+            #data[ambient_token] = dict()
         
         # Get the data timestamp in seconds since epoch and store it as a string
         timestamp = "{:d}".format(int(time.mktime(sensor_data["datetimeread"][line_index].timetuple())))
         
         
         data[canopy_token][timestamp] = "{:.2f}".format(sensor_data["irtemp"][line_index])
-        data[ambient_token][timestamp] = "{:.2f}".format(sensor_data["ambienttemp"][line_index])
+        #data[ambient_token][timestamp] = "{:.2f}".format(sensor_data["ambienttemp"][line_index])
     
     r = sensor_db.post_data(data)
     
@@ -204,8 +213,8 @@ for node_index in sensor_list.index:
         #continue
     
     
-    if count != (sensor_data.index.size * 2):
-        print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size * 2)
+    if count != (sensor_data.index.size * 1):
+        print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size * 1)
     else:
         print "Posted data for " + node_name
 

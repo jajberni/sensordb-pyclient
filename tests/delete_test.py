@@ -1,5 +1,5 @@
-
-sys.path.append('../..')
+import sys
+sys.path.append('../')
 
 from sensordb_api import *
 

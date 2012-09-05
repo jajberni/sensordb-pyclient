@@ -62,7 +62,7 @@ for trial in sensor_list["TrialCode"].unique():
     # TODO - determine the timezone from the site. This would require a dictionary of sites.
     
 
-    experiment = sensor_db.user.create_experiment(trial, "Australia/Brisbane")
+    experiment = sensor_db.user.create_experiment(trial, "Australia/Queensland")
     
     # Add the site/s as metadata
     experiment.metadata_add("site", sites[0])

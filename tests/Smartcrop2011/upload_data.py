@@ -1,6 +1,8 @@
 from pandas import read_csv
 import sys
 import time
+import datetime
+import pytz
 import requests
 from os.path import exists
 
@@ -15,6 +17,8 @@ password = ""
 sensor_list_file = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/SmartField SensorList.csv"
 sensor_data_location = "R:/MCWheat/Equipment/SmartCrop/data2011/SmartField/Analysis/Results/Checked/"
 
+timezone_name = "Australia/Queensland"
+
 ''' Connect to SensorDB '''
 print "Connecting to Database"
 sensor_db = SensorDB(host, username, password)
@@ -24,12 +28,12 @@ sensor_db = SensorDB(host, username, password)
 print "Loading Sensor List"
 sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"], dayfirst = True)
 
-
+'''
 print "Clearing Experiments"
 for experiment in sensor_db.experiments:
     # DEBUG - delete experiment
     experiment.delete()
-
+'''
 
 # Create a list of unique experiment names
 experiment_names = set()
@@ -62,7 +66,7 @@ for trial in sensor_list["TrialCode"].unique():
     # TODO - determine the timezone from the site. This would require a dictionary of sites.
     
 
-    experiment = sensor_db.user.create_experiment(trial, "Australia/Queensland")
+    experiment = sensor_db.user.create_experiment(trial, timezone_name)
     
     # Add the site/s as metadata
     experiment.metadata_add("site", sites[0])
@@ -168,6 +172,11 @@ for node_index in sensor_list.index:
     #Read in Sensor Data
     sensor_data = read_csv(file_name, parse_dates = ["datetimeread"], dayfirst = True)
     
+    timezone = pytz.timezone(timezone_name)
+    
+    canopy_stream.post_dataframe(sensor_data, "datetimeread", "irtemp", timezone)
+    #ambient_stream.post_dataframe(sensor_data, "datetimeread", "ambienttemp", timezone)
+    """
     data = dict()
     
     canopy_token = str(canopy_stream.token)
@@ -217,6 +226,6 @@ for node_index in sensor_list.index:
         print "Data Error  - Response was: " + str(count) + " Expected: " + str(sensor_data.index.size * 1)
     else:
         print "Posted data for " + node_name
-
+    """
     
     

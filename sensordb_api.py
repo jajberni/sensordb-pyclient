@@ -4,7 +4,9 @@ Low Level SensorDB functions
 
 import requests
 import json
-
+import time
+import datetime
+#import pytz
 
 class metaBase(object):
     """metaBase acts as a base class for other objects that contain sensorDB data.
@@ -318,6 +320,79 @@ class Stream(metaBase):
 
         #return json.loads(r.text)
 
+
+    def post_dataframe(self, data_frame, time_col, value_col, tz = None, index_val = None):
+        """Posts data that is stored in a dataFrame created by the PANDAS read_csv function.
+        Requires timstamp and value column names and a stream token.
+        tz - optional timezone to  adjust timestamps.
+        index_val - If index_val is set it is used to filter the data. Only lines with a matching index will be posted.
+        """
+        
+        # Stream token is enclosed in double quote-marks.
+        stream_token = '"' + str(self.token) + '"'
+        
+        data = {stream_token:dict()}
+        count = 0
+        uncounted = 0
+        data_count = 0
+        
+        for line_index in data_frame.index:
+            data_count += 1
+            # A single post cannot be larger than 200000 characters.
+            # If there is enough data in the file then it can go over this limit.
+            # Therefore the data should be separated into multiple posts
+            # 5000 data points should be approximately 100000 characters.   
+            if (len(data[stream_token]) >= 5000):
+
+                r = self._parent_db.post_data(data)
+                
+                try:
+                    count += r["length"]
+                except:
+                    raise Exception("Error posting data.")
+                    #continue
+                
+                # Clear data for next post
+                data = {stream_token:dict()}
+            
+            # Get the data timestamp in seconds since epoch and store it as a string
+            if tz is not None:
+                # Adjust for timezone
+                try:
+                    timestamp = data_frame[time_col][line_index].replace(tzinfo = tz)
+                except:
+                    raise
+                timestamp = timestamp.utctimetuple()
+            else:
+                timestamp = data_frame[time_col][line_index].timetuple()
+            
+            # Note - Timestamps are enclosed in double quote-marks.  
+            timestamp = "\"{:d}\"".format(int(time.mktime(timestamp)))
+            
+            # Duplicate timestamps will not be uploaded more than once.
+            # The final timestamp will be uploaded.            
+            if timestamp in data[stream_token]:
+                uncounted += 1
+            
+            
+            # Store value in the data dict using the timestamp as a key
+            data[stream_token][timestamp] = "{:.2f}".format(data_frame[value_col][line_index])
+            # The database recognises 'null' instead of 'nan'
+            if data[stream_token][timestamp] == 'nan':
+                data[stream_token][timestamp] = 'null'
+        
+        r = self._parent_db.post_data(data)
+        
+        try:
+            count += r["length"]
+        except:
+            raise Exception("Error posting data.")
+            #continue
+        
+        
+        if count != (data_frame.index.size - uncounted):
+            print "Data Error  - Count was: " + str(count) + " Expected: " + str(data_frame.index.size - uncounted)
+
 class SensorDB(object):
     """The SensorDB class handles the interface to a sensorDB server 
     """
@@ -464,10 +539,19 @@ class SensorDB(object):
     def post_data(self, data):
         """Posts data to the Database.
         Data should be a dictionary that contains stream data."""
-        payload = {"data":str(data).replace("'","\"")}
+        
+        '''
+        Note - Items within 'data' are usually stored as strings.
+        The single-quotes around each item are removed after the dict is converted to a string.
+        This is so the data is interpreted correctly.
+        The main issue is that 'null' is not considered the same as null. 
+        '''
+        payload = {"data":str(data).replace("'","")}
         
         r = requests.post(self._host + '/data', payload, cookies = self._cookie)
         return r.json
+
+
     
 if (__name__ == '__main__'):
     sensor_test = SensorDB("http://phenonet.com:9001")

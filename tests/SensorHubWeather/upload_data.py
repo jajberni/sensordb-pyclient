@@ -7,6 +7,8 @@ Created on 03/09/2012
 from pandas import read_csv
 import sys
 import time
+import datetime
+import pytz
 import requests
 from os.path import exists
 from os import chdir
@@ -17,43 +19,87 @@ from sensordb_api import *
 
 #exp_name = "2012 Wthr Gttn Gilbert G3 East"
 exp_name = "2012 Gatton Gilbert G3 East"
+node_name = "SensorHub Node 1"
+timezone_name = "Australia/Queensland"
+
+sensor_units = {"Air Humidity":"Relative Humidity",
+                "Air Pressure":"Kilopascals (KPa)",
+                "Air Temperature":"Celsius",
+                "Body Temperature":"Celsius",
+                "Light":"Watts per Squarse Metre (W/m^2)", # Typo in DB
+                "Light - PAR":"Photosynthetic Photon Flux (umol/m^2)",
+                "Rain Accumulation":"Millimeters (mm)",
+                "Rain Duration":"Seconds (sec)",                # Not in DB
+                "Rain Intensity":"Millimeters per Hour (mm/h)", # Not in DB
+                "Target Temperature":"Celsius",
+                "Thermocouple":"Celsius",
+                "Wind Direction":"Cardinal Direction (Degrees)", # Not in DB
+                "Wind Speed":"Metres per Second (m/s)",
+                "Hub Temperature":"Celsius"}
+
 
 # Gets the node for a particular sensor. Create it if it does not exist.
-def get_sensor_node(experiment, sensor):
-    for node in experiment.nodes:
-        if node.name == sensor["description"]:
-            return node
-        
-    new_node = experiment.create_node(sensor["description"])
+def get_sensor_stream(node, sensor_name):
+    for stream in node.streams:
+        if stream.name == sensor_name:
+            return stream
     
-    if new_node is None:
-        raise Exception("Error creating Node")
+    stream_mid = None
+    units = node._parent_db.get_measurements()
+    for unit in units:
+        if unit['name'] == sensor_units[sensor_name]:
+            stream_mid = unit['_id']
+            break
     
-    return new_node
+    new_stream = None
+    if stream_mid is not None:
+        new_stream = node.create_stream(sensor_name, stream_mid)
+    
+    #if new_stream is None:
+    #    raise Exception("Error creating Node")
+    
+    return new_stream
+
 
 # Gets the sensor nodes. Creates them if they do not exist.
-def get_sensor_nodes(experiment):
-    sensor_list = read_csv("sensors.csv", parse_dates="datetime")
+def get_sensor_streams(node):
+    sensor_list = read_csv("sensors.csv", index_col = "sensorid")
     
     sensor_ids = dict()
     
-    for sensor in sensor_list:
-        node = None #get_sensor_node(experiment, sensor)
-        sensor_ids[sensor["sensorid"]] = node
+    for sensor in sensor_list.index:
+        # Get sensor description
+        sensor_name = sensor_list.xs(sensor)["description"]
+        # Remove anything after the '(' and strip single quotation marks and whitespace
+        sensor_name = sensor_name[:sensor_name.index("(")].strip(" '")
+        
+        stream = get_sensor_stream(node, sensor_name)
+        
+        if stream is not None:
+            sensor_ids[sensor] = stream
     
     return sensor_ids
 
-def upload_old_data(experiment, sensor_ids):
+
+def upload_old_data(sensor_ids):
     for sensor in sensor_ids.keys():
         sensor_filename = ".\\data\\" + str(sensor) + ".csv" 
+        
         if(exists(sensor_filename)):
-            sensor_data = read_csv(sensor_file)
-            
-            #TODO - upload to DB
-            pass
+            stream = sensor_ids[sensor]
 
-        else:
-            print "Warning - No old data found for sensor: " + str(sensor)
+            if stream is not None:
+                sensor_data = read_csv(sensor_filename, parse_dates = ["datetime"])
+
+                if type(sensor_data["datetime"][1]) == type(str()):
+                    pass
+
+                timezone = pytz.timezone(timezone_name)
+
+                stream.post_dataframe(sensor_data, "datetime", "value", timezone)
+            else:
+                pass
+
 
 def upload_new_data(experiment, sensor_ids):
     pass
@@ -61,9 +107,9 @@ def upload_new_data(experiment, sensor_ids):
 
 if __name__ == '__main__':
 
-    host = "http://phenonet.com:900"
-    username = "testUser"
-    password = "password"
+    host = "http://phenonet.com:9001"
+    username = ""
+    password = ""
 
     working_dir = "\\\\win2008-bz1-vc\\D\\Weather\\Gatton"
 
@@ -74,6 +120,15 @@ if __name__ == '__main__':
     ''' Connect to SensorDB '''
     print "Connecting to Database"
     sensor_db = SensorDB(host, username, password)
+    
+    
+    print "Clearing Experiments"
+    for experiment in sensor_db.experiments:
+        # DEBUG - delete experiment
+        if experiment.name == exp_name:
+            experiment.delete()
+    
+    
     
     ''' Create experiment '''
     # Read in the sensor list
@@ -86,25 +141,25 @@ if __name__ == '__main__':
     
     if weather_exp is None:
         old_data = True
-        #weather_exp = sensor_db.user.create_experiment(exp_name, "Australia/Queensland")
+        weather_exp = sensor_db.user.create_experiment(exp_name, timezone_name)
     
         if weather_exp is None:
-            pass
-            #raise Exception("Error creating experiment")
+            raise Exception("Error creating experiment")
         
-        #weather_exp.metadata_add("Site","Gatton Gilbert")
-        #weather_exp.metadata_add("Field","G3")
+        weather_exp.metadata_add("Site","Gatton Gilbert")
+        weather_exp.metadata_add("Field","G3")
     else:
         old_data = False
     
-    # 
-    sensor_ids = get_sensor_nodes(weather_exp)
+    sensorhub_node = weather_exp.create_node(node_name)
+    
+    sensor_ids = get_sensor_streams(sensorhub_node)
     
     #TODO - More thorough check if old data is required
     if old_data:
-        upload_old_data(weather_exp, sensor_ids)
+        upload_old_data(sensor_ids)
     
-    
+    upload_new_data(sensor_ids)
     
     
     

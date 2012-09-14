@@ -5,6 +5,7 @@ Created on 03/09/2012
 '''
 
 from pandas import read_csv
+from pandas.io.date_converters import parse_all_fields
 import sys
 import time
 import datetime
@@ -82,6 +83,8 @@ def get_sensor_streams(node):
 
 
 def upload_old_data(sensor_ids):
+    timezone = pytz.timezone(timezone_name)
+    
     for sensor in sensor_ids.keys():
         sensor_filename = ".\\data\\" + str(sensor) + ".csv" 
         
@@ -94,15 +97,20 @@ def upload_old_data(sensor_ids):
                 if type(sensor_data["datetime"][1]) == type(str()):
                     pass
 
-                timezone = pytz.timezone(timezone_name)
-
                 stream.post_dataframe(sensor_data, "datetime", "value", timezone)
             else:
                 pass
 
 
-def upload_new_data(experiment, sensor_ids):
-    pass
+def upload_new_data(sensor_ids):
+    sensor_data = read_csv("temp.csv", header = None, parse_dates = {"datetime":["year", "month", "day", "hours", "minutes", "seconds"]}, date_parser = parse_all_fields, names = ["sensor", "year", "month", "day", "hours", "minutes", "seconds", "milliseconds", "value"])
+    
+    timezone = pytz.timezone(timezone_name)
+    
+    for sensor in sensor_ids.keys():
+        stream = sensor_ids[sensor]
+        
+        stream.post_dataframe(sensor_data[sensor_data["sensor"] == sensor], "datetime", "value", timezone)
 
 
 if __name__ == '__main__':
@@ -127,6 +135,7 @@ if __name__ == '__main__':
         # DEBUG - delete experiment
         if experiment.name == exp_name:
             experiment.delete()
+            pass
     
     
     
@@ -151,7 +160,16 @@ if __name__ == '__main__':
     else:
         old_data = False
     
-    sensorhub_node = weather_exp.create_node(node_name)
+    
+    sensorhub_node = None
+    
+    for node in weather_exp.nodes:
+        if node.name == node_name:
+            sensorhub_node = node
+            break
+    
+    if sensorhub_node is None: 
+        sensorhub_node = weather_exp.create_node(node_name)
     
     sensor_ids = get_sensor_streams(sensorhub_node)
     

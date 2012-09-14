@@ -321,7 +321,7 @@ class Stream(metaBase):
         #return json.loads(r.text)
 
 
-    def post_dataframe(self, data_frame, time_col, value_col, tz = None, index_val = None):
+    def post_dataframe(self, data_frame, time_col, value_col, tz = None):
         """Posts data that is stored in a dataFrame created by the PANDAS read_csv function.
         Requires timstamp and value column names and a stream token.
         tz - optional timezone to  adjust timestamps.
@@ -334,10 +334,9 @@ class Stream(metaBase):
         data = {stream_token:dict()}
         count = 0
         uncounted = 0
-        data_count = 0
         
         for line_index in data_frame.index:
-            data_count += 1
+
             # A single post cannot be larger than 200000 characters.
             # If there is enough data in the file then it can go over this limit.
             # Therefore the data should be separated into multiple posts

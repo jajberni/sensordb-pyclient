@@ -116,8 +116,8 @@ def upload_new_data(sensor_ids):
 if __name__ == '__main__':
 
     host = "http://phenonet.com:9001"
-    username = ""
-    password = ""
+    username = "testUser"
+    password = "password"
 
     working_dir = "\\\\win2008-bz1-vc\\D\\Weather\\Gatton"
 
@@ -149,6 +149,7 @@ if __name__ == '__main__':
             break
     
     if weather_exp is None:
+        print "Creating Experiment"
         old_data = True
         weather_exp = sensor_db.user.create_experiment(exp_name, timezone_name)
     
@@ -163,22 +164,27 @@ if __name__ == '__main__':
     
     sensorhub_node = None
     
+    print "Getting Node"
     for node in weather_exp.nodes:
         if node.name == node_name:
             sensorhub_node = node
             break
     
-    if sensorhub_node is None: 
+    if sensorhub_node is None:
+        print "Creating Node" 
         sensorhub_node = weather_exp.create_node(node_name)
     
+    print "Geting Streams"
     sensor_ids = get_sensor_streams(sensorhub_node)
     
     #TODO - More thorough check if old data is required
     if old_data:
+        print "Uploading Old Data"
         upload_old_data(sensor_ids)
     
+    print "Uploading New Data"
     upload_new_data(sensor_ids)
     
-    
+    sys.exit() # Success
     
     

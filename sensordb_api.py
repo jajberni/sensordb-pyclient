@@ -39,7 +39,7 @@ class metaBase(object):
 
         for key in kwargs:
             if key in valid_fields:
-                requests.put(self._parent_db._host + page, {id_field: self._id, key: kwargs[key]}, cookies = self._parent_db._cookie);
+                self._parent_db._session.put(self._parent_db._host + page, {id_field: self._id, key: kwargs[key]});
                 # TODO - Check the return value for an error
             else:
                 print "Warning - the field \"" + key + "\" is not recognised. It will be ignored."
@@ -67,7 +67,7 @@ class metaBase(object):
         if "end_ts" in payload:
             payload["end-ts"] = payload.pop("end_ts")
         
-        r = requests.get(self._parent_db._host + '/metadata/add', params = payload, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.get(self._parent_db._host + '/metadata/add', params = payload)
         if r.text == "":
             #self._parent_db.get_session();
             self.metadata_retrieve()
@@ -77,7 +77,7 @@ class metaBase(object):
     def metadata_remove(self, name):
         """Removes the metadata for the current object with the name provided."""
         payload = {"id": self._id, "name": name}
-        r = requests.get(self._parent_db._host + '/metadata/remove', params = payload, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.get(self._parent_db._host + '/metadata/remove', params = payload)
         if r.text == "":
             #self._parent_db.get_session();
             self.metadata_retrieve()
@@ -86,7 +86,7 @@ class metaBase(object):
     
     def metadata_retrieve(self):
         """Retrieves and updates the metadata for the current object."""
-        r = requests.get(self._parent_db._host + '/metadata/retrieve/' + self._id, cookies = self._parent_db._cookie)        
+        r = self._parent_db._session.get(self._parent_db._host + '/metadata/retrieve/' + self._id)        
         #self.metadata = json.loads(r.text)
         #self.metadata = r.json
         self.metadata = dict()
@@ -124,7 +124,7 @@ class User(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r = requests.post(self._parent_db._host + '/experiments', cookies = self._parent_db._cookie, data = payload)
+        r = self._parent_db._session.post(self._parent_db._host + '/experiments', data = payload)
         
         returned_json = r.json
 
@@ -153,7 +153,7 @@ class User(metaBase):
     
     def get_tokens(self):
         """Retrieves a list of tokens from the server."""
-        r = requests.get(self._parent_db._host + "/tokens", cookies = self._parent_db._cookie)
+        r = self._parent_db._session.get(self._parent_db._host + "/tokens")
         #return json.loads(r.text)
         return r.json
 
@@ -190,7 +190,7 @@ class Experiment(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r=requests.post(self._parent_db._host + "/nodes", payload, cookies = self._parent_db._cookie);
+        r=self._parent_db._session.post(self._parent_db._host + "/nodes", payload);
         #self._parent_db.get_session()
         if r.status_code == 200:
             #value_store = json.loads(r.text)
@@ -210,7 +210,7 @@ class Experiment(metaBase):
         
     def delete(self):
         """Deletes the current experiment."""
-        r = requests.delete(self._parent_db._host + "/experiments", params = {"eid" : str(self._id)}, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.delete(self._parent_db._host + "/experiments", params = {"eid" : str(self._id)})
         self._parent_db.get_session();
         return r.text
 
@@ -235,7 +235,7 @@ class Node(metaBase):
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."        
-        r = requests.post(self._parent_db._host + "/streams", payload, cookies = self._parent_db._cookie);
+        r = self._parent_db._session.post(self._parent_db._host + "/streams", payload);
         #self._parent_db.get_session();
         #print ("Creating node: " + r.text)
         if r.status_code == 200:
@@ -261,7 +261,7 @@ class Node(metaBase):
     
     def delete(self):
         """Deletes the current node."""
-        r = requests.delete(self._parent_db._host + "/nodes", params = {"nid" : str(self._id)}, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.delete(self._parent_db._host + "/nodes", params = {"nid" : str(self._id)})
         self._parent_db.get_session();
         return r.text
       
@@ -285,7 +285,7 @@ class Stream(metaBase):
         
     def delete(self):
         """Deletes the current stream."""
-        r = requests.delete(self._parent_db._host + "/streams", params = {'sid' : str(self._id)}, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.delete(self._parent_db._host + "/streams", params = {'sid' : str(self._id)})
         self._parent_db.get_session();
         return r.text
 
@@ -315,7 +315,7 @@ class Stream(metaBase):
         if level is not None:
             payload["level"] = level
         
-        r = requests.get(self._parent_db._host + "/data", params=payload, cookies = self._parent_db._cookie)
+        r = self._parent_db._session.get(self._parent_db._host + "/data", params=payload)
         return r #The data output is not json compatible, so I had to change this. 
 
         #return json.loads(r.text)
@@ -402,7 +402,7 @@ class SensorDB(object):
         A host address must be specified. Optionally a username and password may be specified to log in immediately.
         """
         self._host = host
-        self._cookie = None
+        self._session = requests.session() # Create new session
         self.user = None
         self.experiments = []
         self._nodes = []
@@ -472,18 +472,18 @@ class SensorDB(object):
         Returns the session data if successful.
         """
         payload_login = {'name' : username, 'password':password}
-        r = requests.post(self._host + '/login', data=payload_login)
+        r = self._session.post(self._host + '/login', data=payload_login)
       
         if not (r.status_code in range (200,300)):
             raise Exception("Login failed!")
-        self._cookie = r.cookies
+        #self._cookie = r.cookies
         return self.__convert_session(r.json)
     
     #logs out and deletes the _cookie
     def logout(self):
         """Logs out the current user"""
-        requests.post(self._host + '/logout');
-        self._cookie = None
+        self._session.post(self._host + '/logout');
+        #self._session.cookies.clear_session_cookies()
         return
     
     #Registers a new user
@@ -500,14 +500,14 @@ class SensorDB(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
              
-        r = requests.post(self._host + '/register', data = payload)
+        r = self._session.post(self._host + '/register', data = payload)
         return r.text
     
     def remove(self, username, password):
         """Removes a registered user.
         Username and Password are required.
         """
-        r = requests.post(self._host + '/remove', data={'name' : username, 'password':password})
+        r = self._session.post(self._host + '/remove', data={'name' : username, 'password':password})
         return r.text
     
     # --- User Access API ---
@@ -518,21 +518,21 @@ class SensorDB(object):
         Gets data for a particular user or the current user if none is specified
         """
         if username is None:
-            r = requests.get(self._host + '/session2', cookies = self._cookie)
+            r = self._session.get(self._host + '/session2')
         else:
-            r = requests.get(self._host + '/session2', {"username" : username}, cookies = self._cookie)
+            r = self._session.get(self._host + '/session2', {"username" : username})
         return self.__convert_session(r.json)
     
     def get_users(self):
         """Gets the user list."""
-        r = requests.get(self._host + "/users")
+        r = self._session.get(self._host + "/users")
         return r.text
     
 
     def get_measurements(self):
         """Gets all measurements.
         Measurements are returned as an array of dictionaries. Each dictionary contains information on a single measurement."""
-        r = requests.get(self._host + "/measurements", cookies = self._cookie)
+        r = self._session.get(self._host + "/measurements")
         return json.loads(r.text)
     
     def post_data(self, data):
@@ -547,7 +547,7 @@ class SensorDB(object):
         '''
         payload = {"data":str(data).replace("'","")}
         
-        r = requests.post(self._host + '/data', payload, cookies = self._cookie)
+        r = self._session.post(self._host + '/data', payload)
         return r.json
 
 

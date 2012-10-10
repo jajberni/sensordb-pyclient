@@ -40,9 +40,12 @@ sensor_units = {"Air Humidity":"Relative Humidity",
 
 
 # Gets the node for a particular sensor. Create it if it does not exist.
-def get_sensor_stream(node, sensor_name):
+def get_sensor_stream(node, sensor_name, sensor_type = None):
     for stream in node.streams:
         if stream.name == sensor_name:
+            if (sensor_type is not None) and not ("Sensor" in stream.metadata):
+                stream.metadata_add("Sensor", sensor_type)
+                
             return stream
     
     stream_mid = None
@@ -55,6 +58,9 @@ def get_sensor_stream(node, sensor_name):
     new_stream = None
     if stream_mid is not None:
         new_stream = node.create_stream(sensor_name, stream_mid)
+        
+        if sensor_type is not None:
+            new_stream.metadata_add("Sensor", sensor_type)
     
     #if new_stream is None:
     #    raise Exception("Error creating Node")
@@ -72,9 +78,13 @@ def get_sensor_streams(node):
         # Get sensor description
         sensor_name = sensor_list.xs(sensor)["description"]
         # Remove anything after the '(' and strip single quotation marks and whitespace
-        sensor_name = sensor_name[:sensor_name.index("(")].strip(" '")
+        if sensor_name.index("("):
+            sensor_type = sensor_name[(sensor_name.index("(") + 1):sensor_name.index(")")]
+            sensor_name = sensor_name[:sensor_name.index("(")].strip(" '")
+        else:
+            pass
         
-        stream = get_sensor_stream(node, sensor_name)
+        stream = get_sensor_stream(node, sensor_name, sensor_type)
         
         if stream is not None:
             sensor_ids[sensor] = stream
@@ -134,7 +144,7 @@ if __name__ == '__main__':
     for experiment in sensor_db.experiments:
         # DEBUG - delete experiment
         if experiment.name == exp_name:
-            experiment.delete()
+            #experiment.delete()
             pass
     
     
@@ -174,7 +184,7 @@ if __name__ == '__main__':
         print "Creating Node" 
         sensorhub_node = weather_exp.create_node(node_name)
     
-    print "Geting Streams"
+    print "Getting Streams"
     sensor_ids = get_sensor_streams(sensorhub_node)
     
     #TODO - More thorough check if old data is required

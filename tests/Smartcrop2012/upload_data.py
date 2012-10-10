@@ -11,8 +11,8 @@ sys.path.append('../..')
 from sensordb_api import *
 
 host = "http://phenonet.com:9001"
-username = "eholland"
-password = "john1098"
+username = "testUser"
+password = "password"
 
 sensor_list_file = "\\\\win2008-bz1-vc\\D\\Weather\\SmartField\\SmartField SensorList.csv"
 sensor_data_location = "\\\\win2008-bz1-vc\\D\\Weather\\SmartField\\2012\\Sensors\\"
@@ -153,7 +153,7 @@ for node_index in sensor_list.index:
     position = str(sensor_list['Pos'][node_index]).upper()
     serial = str(sensor_list['Serial Number'][node_index])
     
-    canopy_stream = node.create_stream("CanopyTemp" + position + "-" + serial, temp_id)
+    canopy_stream = node.create_stream("CanopyTemp" + position + "-" + int(serial), temp_id)
     #ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
     # Add other streams here
     # Humidity?
@@ -162,10 +162,11 @@ for node_index in sensor_list.index:
         # Streams are already created?
         continue
     
+    # TODO - Adjust time for different timezone 
     start_time = time.mktime(sensor_list["StartDate"][node_index].timetuple())
     end_time = time.mktime(sensor_list["EndDate"][node_index].timetuple())
     
-    canopy_stream.metadata_add("Sensor", serial, start_ts=int(start_time), end_ts=int(end_time))
+    canopy_stream.metadata_add("Sensor", int(serial), start_ts=int(start_time), end_ts=int(end_time))
     canopy_stream.metadata_add("Position", position)
     
     #ambient_stream.metadata_add("Sensor", serial, start_ts=int(start_time), end_ts=int(end_time))

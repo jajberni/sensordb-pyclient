@@ -2,6 +2,8 @@
 Created on 10/10/2012
 
 @author: hol40p
+
+A script to upload voltage data from Smartcrop base stations.
 '''
 
 from pandas import read_csv
@@ -72,20 +74,31 @@ if __name__ == '__main__':
                sys_stream = stream
            elif stream.name == batt_stream_name:
                batt_stream = stream
+           
+           #if (sys_stream is not None) and (batt_stream is not None): break
+       
+        print "Reading Data File"
+        #Read in voltage data
+        voltage_data = read_csv(filename, parse_dates = ["datetime"], dayfirst = True)
+        last_entry = voltage_data[len(voltage_data)-1:]
+        
         
         if sys_stream is None:
+            # If creating the stream upload all of the data
+            print "Uploading All Data"  
             sys_stream = base_node.create_stream(sys_stream_name, volt_id)
-            
+            sys_stream.post_dataframe(voltage_data, "datetime", "sys_voltage")
+        else:
+            print "Uploading Most Recent Datum"
+            sys_stream.post_dataframe(last_entry, "datetime", "sys_voltage")
+        
+        
         if batt_stream is None:
+            print "Uploading All Data"
+            # If creating the stream upload all of the data  
             batt_stream = base_node.create_stream(batt_stream_name, volt_id)
-            
-        #Read in Sensor Data
-        sensor_data = read_csv(filename, parse_dates = ["datetime"], dayfirst = True)
-
-        #timezone = pytz.timezone(timezone_name)
-
-        sys_stream.post_dataframe(sensor_data, "datetime", "sys_voltage")
-        batt_stream.post_dataframe(sensor_data, "datetime", "batt_voltage")
-        pass
-    
+            batt_stream.post_dataframe(voltage_data, "datetime", "batt_voltage")
+        else:
+            print "Uploading Most Recent Datum"
+            batt_stream.post_dataframe(last_entry, "datetime", "batt_voltage")
     

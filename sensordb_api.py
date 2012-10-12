@@ -1,11 +1,12 @@
 """@package sensordb_api
-Low Level SensorDB functions 
+Low Level SensorDB functions
 """
 
 import requests
 import json
 import time
 import datetime
+from calendar import timegm
 #import pytz
 
 class metaBase(object):
@@ -18,10 +19,10 @@ class metaBase(object):
         Requires a SensorDB instance and a list of required fields as arguments. Takes a dictionary of values."""
         self.metadata = {}
         self._parent_db = sensor_db
-        for key in kwargs:
+        for key in kwargs.iterkeys():
             # Copy each variable in the dictionary as a variable
             vars(self)[key] = kwargs[key]
-            
+        
         # Check that the object was initialised with all of the required variables
         for field in required_fields:
             if not field in vars(self):
@@ -32,12 +33,12 @@ class metaBase(object):
         """This is a common method to update data.
         Derivative classes should call this method to update data in the database.
         'page' is the url of the page not including the hostname.
-        'id_field' is the name of the id field that the server is expecting (e.g. 'sid' for streams).
-        'valid_fields' is a list of field names that are valid for this object.
-        Keyword arguments should be of the form "field='value'". Multiple fields can be updated with one call to the function.
+        'id_field' is the name of the id field that the server is expecting (e.g. 'sid' for streams, 'eid' for experiments).
+        'valid_fields' is a list of field names that are valid for the object being updated.
+        The keyword arguments are the key/value pairs to be updated. Multiple fields can be updated with one call to the function.
         """
 
-        for key in kwargs:
+        for key in kwargs.iterkeys():
             if key in valid_fields:
                 self._parent_db._session.put(self._parent_db._host + page, {id_field: self._id, key: kwargs[key]});
                 # TODO - Check the return value for an error
@@ -53,21 +54,21 @@ class metaBase(object):
         """
         payload = {"id": self._id, "name": name, "value": value}
         optional_fields = ["description", "start_ts", "end_ts"] 
-        for key in kwargs:
+        for key in kwargs.iterkeys():
             if key in optional_fields:
                 payload[key] = kwargs[key]
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
         
-        # Because python does not allow hyphens in variable names, underscore is accepted and replaced with a hyphen
+        # Because Python does not allow hyphens in variable names, underscore is accepted and replaced with a hyphen
         if "start_ts" in payload:
             payload["start-ts"] = payload.pop("start_ts")
         
         if "end_ts" in payload:
             payload["end-ts"] = payload.pop("end_ts")
         
-        r = self._parent_db._session.get(self._parent_db._host + '/metadata/add', params = payload)
+        r = self._parent_db._session.get(self._parent_db._host + '/metadata/add', params=payload)
         if r.text == "":
             #self._parent_db.get_session();
             self.metadata_retrieve()
@@ -77,7 +78,7 @@ class metaBase(object):
     def metadata_remove(self, name):
         """Removes the metadata for the current object with the name provided."""
         payload = {"id": self._id, "name": name}
-        r = self._parent_db._session.get(self._parent_db._host + '/metadata/remove', params = payload)
+        r = self._parent_db._session.get(self._parent_db._host + '/metadata/remove', params=payload)
         if r.text == "":
             #self._parent_db.get_session();
             self.metadata_retrieve()
@@ -124,7 +125,7 @@ class User(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r = self._parent_db._session.post(self._parent_db._host + '/experiments', data = payload)
+        r = self._parent_db._session.post(self._parent_db._host + '/experiments', data=payload)
         
         returned_json = r.json
 
@@ -149,7 +150,7 @@ class User(metaBase):
     
     def get_session(self):
         """Retrieves session data from the server and updates the local copy."""
-        return self._parent_db.get_session(username = self.username)
+        return self._parent_db.get_session(username=self.username)
     
     def get_tokens(self):
         """Retrieves a list of tokens from the server."""
@@ -190,7 +191,7 @@ class Experiment(metaBase):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
         
-        r=self._parent_db._session.post(self._parent_db._host + "/nodes", payload);
+        r = self._parent_db._session.post(self._parent_db._host + "/nodes", payload);
         #self._parent_db.get_session()
         if r.status_code == 200:
             #value_store = json.loads(r.text)
@@ -210,7 +211,7 @@ class Experiment(metaBase):
         
     def delete(self):
         """Deletes the current experiment."""
-        r = self._parent_db._session.delete(self._parent_db._host + "/experiments", params = {"eid" : str(self._id)})
+        r = self._parent_db._session.delete(self._parent_db._host + "/experiments", params={"eid" : str(self._id)})
         self._parent_db.get_session();
         return r.text
 
@@ -261,7 +262,7 @@ class Node(metaBase):
     
     def delete(self):
         """Deletes the current node."""
-        r = self._parent_db._session.delete(self._parent_db._host + "/nodes", params = {"nid" : str(self._id)})
+        r = self._parent_db._session.delete(self._parent_db._host + "/nodes", params={"nid" : str(self._id)})
         self._parent_db.get_session();
         return r.text
       
@@ -285,11 +286,11 @@ class Stream(metaBase):
         
     def delete(self):
         """Deletes the current stream."""
-        r = self._parent_db._session.delete(self._parent_db._host + "/streams", params = {'sid' : str(self._id)})
+        r = self._parent_db._session.delete(self._parent_db._host + "/streams", params={'sid' : str(self._id)})
         self._parent_db.get_session();
         return r.text
 
-    def get_data(self, start_date = None, end_date = None, level = None):
+    def get_data(self, start_date=None, end_date=None, level=None):
         """Returns data for this stream.
         Start date may be specified. If it is not the earliest date is used.
         End date may be specified. If it is not the latest date is used.
@@ -321,11 +322,11 @@ class Stream(metaBase):
         #return json.loads(r.text)
 
 
-    def post_dataframe(self, data_frame, time_col, value_col, tz = None):
+    def post_dataframe(self, data_frame, time_col, value_col, tz=None):
         """Posts data that is stored in a dataFrame created by the PANDAS read_csv function.
-        Requires timstamp and value column names and a stream token.
-        tz - optional timezone to  adjust timestamps.
-        index_val - If index_val is set it is used to filter the data. Only lines with a matching index will be posted.
+        Requires timestamp and value column names and a stream token.
+        tz - Optional timezone that is assigned to all timestamps.
+        (Note: If timestamps do not already have timezone info and no timezone is given then local timezone is assumed.) 
         """
         
         # Stream token is enclosed in double quote-marks.
@@ -338,7 +339,7 @@ class Stream(metaBase):
         for line_index in data_frame.index:
 
             # A single post cannot be larger than 200000 characters.
-            # If there is enough data in the file then it can go over this limit.
+            # If there is enough data in the data frame then it can go over this limit.
             # Therefore the data should be separated into multiple posts
             # 5000 data points should be approximately 100000 characters.   
             if (len(data[stream_token]) >= 5000):
@@ -354,19 +355,25 @@ class Stream(metaBase):
                 # Clear data for next post
                 data = {stream_token:dict()}
             
-            # Get the data timestamp in seconds since epoch and store it as a string
+
             if tz is not None:
                 # Adjust for timezone
-                try:
-                    timestamp = data_frame[time_col][line_index].replace(tzinfo = tz)
-                except:
-                    raise
-                timestamp = timestamp.utctimetuple()
+                timestamp = data_frame[time_col][line_index].replace(tzinfo=tz)
             else:
-                timestamp = data_frame[time_col][line_index].timetuple()
+                timestamp = data_frame[time_col][line_index]
+            
+            # Get the data timestamp in seconds since epoch and store it as a string
+            if timestamp.tzinfo is not None:
+                # If there is timezone information convert it to UTC first
+                timestamp = timestamp.utctimetuple()
+                timestamp = timegm(timestamp)
+            else:
+                # Otherwise assume the timestamp is in local time. 
+                timestamp = timestamp.timetuple()
+                timestamp = time.mktime(timestamp)
             
             # Note - Timestamps are enclosed in double quote-marks.  
-            timestamp = "\"{:d}\"".format(int(time.mktime(timestamp)))
+            timestamp = "\"{:d}\"".format(int(timestamp))
             
             # Duplicate timestamps will not be uploaded more than once.
             # The final timestamp will be uploaded.            
@@ -397,12 +404,12 @@ class SensorDB(object):
     """
     
     # Initialise with host address  
-    def __init__(self, host, username = None, password = None):
+    def __init__(self, host, username=None, password=None):
         """The constructor for SensorDB.
         A host address must be specified. Optionally a username and password may be specified to log in immediately.
         """
         self._host = host
-        self._session = requests.session() # Create new session
+        self._session = requests.session() # Create new requests session to store cookies
         self.user = None
         self.experiments = []
         self._nodes = []
@@ -474,7 +481,7 @@ class SensorDB(object):
         payload_login = {'name' : username, 'password':password}
         r = self._session.post(self._host + '/login', data=payload_login)
       
-        if not (r.status_code in range (200,300)):
+        if not (r.status_code in range (200, 300)):
             raise Exception("Login failed!")
         #self._cookie = r.cookies
         return self.__convert_session(r.json)
@@ -500,7 +507,7 @@ class SensorDB(object):
             else:
                 print "Warning - The field \"" + key + "\" is not recognised. It will be ignored."
              
-        r = self._session.post(self._host + '/register', data = payload)
+        r = self._session.post(self._host + '/register', data=payload)
         return r.text
     
     def remove(self, username, password):
@@ -513,7 +520,7 @@ class SensorDB(object):
     # --- User Access API ---
     
     # Returns session data
-    def get_session(self, username = None):
+    def get_session(self, username=None):
         """Gets session data.
         Gets data for a particular user or the current user if none is specified
         """
@@ -543,9 +550,9 @@ class SensorDB(object):
         Note - Items within 'data' are usually stored as strings.
         The single-quotes around each item are removed after the dict is converted to a string.
         This is so the data is interpreted correctly.
-        The main issue is that 'null' is not considered the same as null. 
+        The main issue is that "'null'" (with quotes) is not considered the same as "null". 
         '''
-        payload = {"data":str(data).replace("'","")}
+        payload = {"data":str(data).replace("'", "")}
         
         r = self._session.post(self._host + '/data', payload)
         return r.json
@@ -553,12 +560,24 @@ class SensorDB(object):
 
     
 if (__name__ == '__main__'):
-    sensor_test = SensorDB("http://phenonet.com:9001")
+    print "Testing SensorDB API"
     
-    #print sensor_test.register('username', 'password', 'user@example.com')
+    host = "http://phenonet.com:9002"
     
-    print sensor_test.login('username', 'password')
+    print "Connecting to host: {0}".format(host)
+    sensor_test = SensorDB(host)
     
+    print "Registering new user"
+    print sensor_test.register('testUser', 'password', 'testUser@example.com')
+    
+    print "Logging in with new user"
+    print sensor_test.login('testUser', 'password')
+    
+    print "Retrieving session"
     print sensor_test.get_session()
     
+    print "Logging out"
+    sensor_test.logout()
     
+    print "Removing user"
+    print sensor_test.remove('testUser', 'password')

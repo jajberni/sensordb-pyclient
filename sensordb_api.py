@@ -321,6 +321,7 @@ class Stream(metaBase):
         if level is not None:
             payload["level"] = level
         
+<<<<<<< HEAD
         r = self._parent_db._session.post(self._parent_db._host + "/data_download", payload)
         #return r #The data output is not json compatible, so I had to change this. 
         
@@ -334,6 +335,16 @@ class Stream(metaBase):
         sdf = Series(data=df[1].values,index=tt)
 
         return sdf
+=======
+        r = self._parent_db._session.post(self._parent_db._host + "/data_download", payload)        
+        data = json.loads(r.content) 
+
+        """The downloaded data is not sorted so it requires sorting before returning the array"""
+        sdata = data[data.keys()[0]]
+        sdata.sort()
+
+        return sdata
+>>>>>>> b934c8e990b0b484f2c6e4cc153028230d9e44b4
 
 
     def post_dataframe(self, data_frame, time_col, value_col, tz=None):

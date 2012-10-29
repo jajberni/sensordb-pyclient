@@ -30,12 +30,12 @@ sensor_list = read_csv(sensor_list_file, parse_dates = ["StartDate", "EndDate"],
 # Remove items from the list that have no sensor
 sensor_list = sensor_list[sensor_list["Serial Number"] > 0]
 
-'''
+
 print "Clearing Experiments"
 for experiment in sensor_db.experiments:
     # DEBUG - delete experiment
     experiment.delete()
-'''
+
 
 # Create a list of unique experiment names
 experiment_names = set()
@@ -151,9 +151,9 @@ for node_index in sensor_list.index:
         node = existing_nodes[trial_name][node_name]
         
     position = str(sensor_list['Pos'][node_index]).upper()
-    serial = str(sensor_list['Serial Number'][node_index])
+    serial = int(sensor_list['Serial Number'][node_index])
     
-    canopy_stream = node.create_stream("CanopyTemp" + position + "-" + int(serial), temp_id)
+    canopy_stream = node.create_stream("CanopyTemp" + position + "-" + str(serial), temp_id)
     #ambient_stream = node.create_stream("AmbientTemp" + position + "-" + serial, temp_id)
     # Add other streams here
     # Humidity?
@@ -176,6 +176,9 @@ for node_index in sensor_list.index:
     sensor_data = read_csv(file_name, parse_dates = ["datetimeread"], dayfirst = True)
     
     timezone = pytz.timezone(timezone_name)
+    if(sensor_data["systemname"][0] == "ACRI - 1625"):
+        timezone = pytz.timezone("Australia/Sydney")
+    
     
     canopy_stream.post_dataframe(sensor_data, "datetimeread", "irtemp", timezone)
     #ambient_stream.post_dataframe(sensor_data, "datetimeread", "ambienttemp", timezone)

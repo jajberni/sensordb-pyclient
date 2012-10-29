@@ -160,7 +160,7 @@ if __name__ == '__main__':
     
     if weather_exp is None:
         print "Creating Experiment"
-        old_data = True
+        
         weather_exp = sensor_db.user.create_experiment(exp_name, timezone_name)
     
         if weather_exp is None:
@@ -168,8 +168,7 @@ if __name__ == '__main__':
         
         weather_exp.metadata_add("Site","Gatton Gilbert")
         weather_exp.metadata_add("Field","G3")
-    else:
-        old_data = False
+
     
     
     sensorhub_node = None
@@ -180,9 +179,17 @@ if __name__ == '__main__':
             sensorhub_node = node
             break
     
+    if True:
+        if sensorhub_node is not None:
+            sensorhub_node.delete()
+            sensorhub_node = None
+    
     if sensorhub_node is None:
         print "Creating Node" 
         sensorhub_node = weather_exp.create_node(node_name)
+        old_data = True
+    else:
+        old_data = False
     
     print "Getting Streams"
     sensor_ids = get_sensor_streams(sensorhub_node)

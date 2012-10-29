@@ -4,10 +4,11 @@ Low Level SensorDB functions
 
 import requests
 import json
-import time
-import datetime
-from calendar import timegm
-#import pytz
+#import time
+#import datetime
+#from calendar import timegm
+from pandas import DataFrame,DatetimeIndex,Series
+import pytz
 
 class metaBase(object):
     """metaBase acts as a base class for other objects that contain sensorDB data.
@@ -89,7 +90,7 @@ class metaBase(object):
         """Retrieves and updates the metadata for the current object."""
         r = self._parent_db._session.get(self._parent_db._host + '/metadata/retrieve/' + self._id)        
         #self.metadata = json.loads(r.text)
-        #self.metadata = r.json
+        #self.metadata = json.loads(r.content)
         self.metadata = dict()
         
         """
@@ -97,7 +98,7 @@ class metaBase(object):
         This allows the metadata to be retrieved by name.
         To access the metadata as a list use metadata.values()
         """
-        for metavalue in r.json:
+        for metavalue in json.loads(r.content):
             self.metadata[metavalue['name']] = metavalue
         
         return
@@ -127,7 +128,7 @@ class User(metaBase):
         
         r = self._parent_db._session.post(self._parent_db._host + '/experiments', data=payload)
         
-        returned_json = r.json
+        returned_json = json.loads(r.content)
 
         if returned_json.has_key("errors"):
             raise Exception(returned_json["errors"])
@@ -156,7 +157,7 @@ class User(metaBase):
         """Retrieves a list of tokens from the server."""
         r = self._parent_db._session.get(self._parent_db._host + "/tokens")
         #return json.loads(r.text)
-        return r.json
+        return json.loads(r.content)
 
 
 class Experiment(metaBase):
@@ -195,12 +196,12 @@ class Experiment(metaBase):
         #self._parent_db.get_session()
         if r.status_code == 200:
             #value_store = json.loads(r.text)
-            value_store = r.json
+            value_store = json.loads(r.content)
             
             #print("Node creation: " + r.text)
             new_node = Node(self, **value_store)
             new_node._parent_db = self._parent_db
-            
+            new_node._parent_experiment = self
             self.nodes.append(new_node)
             self._parent_db._nodes.append(new_node)
             
@@ -221,6 +222,7 @@ class Node(metaBase):
         """Initialises the Node object.
         Requires a SensorDB instance as an argument. Takes a dictionary of values."""
         self.streams = []
+        self._parent_experiment = None
         required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "uid", "eid", "alt", "lat", "lon"]
         super(Node, self).__init__(sensor_db, required_fields, **kwargs);
     
@@ -241,10 +243,11 @@ class Node(metaBase):
         #print ("Creating node: " + r.text)
         if r.status_code == 200:
             #value_store = json.loads(r.text)
-            value_store = r.json
+            value_store = json.loads(r.content)
             #print("Node creation: " + r.text)
             new_stream = Stream(self, **value_store)
             new_stream._parent_db = self._parent_db
+            new_stream._parent_node = self
             self.streams.append(new_stream)
             return new_stream
         else:
@@ -271,8 +274,10 @@ class Stream(metaBase):
     def __init__(self, sensor_db, **kwargs):
         """Initialises the Stream object.
         Requires a SensorDB instance as an argument. Takes a dictionary of values."""
+        self._parent_node = None        
         required_fields = ["_id", "name", "picture", "website", "description", "created_at", "updated_at", "mid", "uid", "nid"]
         super(Stream, self).__init__(sensor_db, required_fields, **kwargs);
+        
         return
 
     def update(self, **kwargs):
@@ -316,10 +321,19 @@ class Stream(metaBase):
         if level is not None:
             payload["level"] = level
         
-        r = self._parent_db._session.get(self._parent_db._host + "/data", params=payload)
-        return r #The data output is not json compatible, so I had to change this. 
+        r = self._parent_db._session.post(self._parent_db._host + "/data_download", payload)
+        #return r #The data output is not json compatible, so I had to change this. 
+        
+        data = json.loads(r.content)
+        sdata = data[data.keys()[0]]
+        sdata.sort()
 
-        #return json.loads(r.text)
+        df = DataFrame(sdata)
+        tt = DatetimeIndex(df[0]*1000000000)
+        df = df.set_index(tt)
+        sdf = Series(data=df[1].values,index=tt)
+
+        return sdf
 
 
     def post_dataframe(self, data_frame, time_col, value_col, tz=None):
@@ -348,32 +362,28 @@ class Stream(metaBase):
                 
                 try:
                     count += r["length"]
-                except:
+                except Exception, e: 
+                    #print (e.message)
                     raise Exception("Error posting data.")
                     #continue
                 
                 # Clear data for next post
-                data = {stream_token:dict()}
+                data = {stream_token:dict()}                            
             
 
-            if tz is not None:
-                # Adjust for timezone
-                timestamp = data_frame[time_col][line_index].replace(tzinfo=tz)
+            # Get the timezone for the experiment
+            experiment_timezone = self._parent_node._parent_experiment.timezone            
+            localtz = pytz.timezone(experiment_timezone)
+
+            # If the data doesn't have timezone information then we assume it is local
+            ts = data_frame[time_col][line_index]
+            if ts.tzinfo is None:
+                # Note - Timestamps are enclosed in double quote-marks.  
+                timestamp = "\"{:s}\"".format(data_frame[time_col][line_index].isoformat())
+            # Otherwise we have to convert it local timezone
             else:
-                timestamp = data_frame[time_col][line_index]
-            
-            # Get the data timestamp in seconds since epoch and store it as a string
-            if timestamp.tzinfo is not None:
-                # If there is timezone information convert it to UTC first
-                timestamp = timestamp.utctimetuple()
-                timestamp = timegm(timestamp)
-            else:
-                # Otherwise assume the timestamp is in local time. 
-                timestamp = timestamp.timetuple()
-                timestamp = time.mktime(timestamp)
-            
-            # Note - Timestamps are enclosed in double quote-marks.  
-            timestamp = "\"{:d}\"".format(int(timestamp))
+                # Note - Timestamps are enclosed in double quote-marks.  
+                timestamp = "\"{:s}\"".format(data_frame[time_col][line_index].astimezone(localtz).strftime("%Y-%m-%dT%H:%M:%S"))
             
             # Duplicate timestamps will not be uploaded more than once.
             # The final timestamp will be uploaded.            
@@ -386,13 +396,16 @@ class Stream(metaBase):
             # The database recognises 'null' instead of 'nan'
             if data[stream_token][timestamp] == 'nan':
                 data[stream_token][timestamp] = 'null'
-        
         r = self._parent_db.post_data(data)
         
         try:
             count += r["length"]
-        except:
+        except Exception, e: 
+            #print (e.message)
             raise Exception("Error posting data.")
+            
+        #except:
+         #   raise Exception("Error posting data.")
             #continue
         
         
@@ -452,6 +465,7 @@ class SensorDB(object):
                 
                 for experiment in self.experiments:
                     if new_node.eid == experiment._id:
+                        new_node._parent_experiment = experiment
                         experiment.nodes.append(new_node)
                         break
                 
@@ -466,6 +480,7 @@ class SensorDB(object):
                 
                 for node in self._nodes:
                     if new_stream.nid == node._id:
+                        new_stream._parent_node = node
                         node.streams.append(new_stream)
                         
         return True
@@ -484,7 +499,7 @@ class SensorDB(object):
         if not (r.status_code in range (200, 300)):
             raise Exception("Login failed!")
         #self._cookie = r.cookies
-        return self.__convert_session(r.json)
+        return self.__convert_session(json.loads(r.content))
     
     #logs out and deletes the _cookie
     def logout(self):
@@ -528,7 +543,7 @@ class SensorDB(object):
             r = self._session.get(self._host + '/session2')
         else:
             r = self._session.get(self._host + '/session2', {"username" : username})
-        return self.__convert_session(r.json)
+        return self.__convert_session(json.loads(r.content))
     
     def get_users(self):
         """Gets the user list."""
@@ -555,7 +570,7 @@ class SensorDB(object):
         payload = {"data":str(data).replace("'", "")}
         
         r = self._session.post(self._host + '/data', payload)
-        return r.json
+        return json.loads(r.content)
 
 
     

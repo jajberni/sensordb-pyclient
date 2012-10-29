@@ -353,11 +353,13 @@ class Stream(metaBase):
         
         for line_index in data_frame.index:
 
-            # A single post cannot be larger than 200000 characters.
-            # If there is enough data in the data frame then it can go over this limit.
-            # Therefore the data should be separated into multiple posts
-            # 5000 data points should be approximately 100000 characters.   
-            if (len(data[stream_token]) >= 5000):
+            # The server cannot handle posts over 200000 characters.
+            # Overhead when posting uses approximately 60000 characters.
+            # If there is enough data in the data frame then it can exceed the limit.
+            # Therefore the data should be separated into multiple posts.
+            
+            if len(str(data)) >= 130000:   
+            #if (len(data[stream_token]) >= 4000):
 
                 r = self._parent_db.post_data(data)
                 
@@ -566,7 +568,8 @@ class SensorDB(object):
         Note - Items within 'data' are usually stored as strings.
         The single-quotes around each item are removed after the dict is converted to a string.
         This is so the data is interpreted correctly.
-        The main issue is that "'null'" (with quotes) is not considered the same as "null". 
+        The main issue is that "'null'" (with single-quotes) is not considered the same as "null".
+        Numbers are otherwise treated the same.
         '''
         payload = {"data":str(data).replace("'", "")}
         

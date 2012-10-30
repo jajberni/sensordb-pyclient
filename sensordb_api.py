@@ -335,6 +335,67 @@ class Stream(metaBase):
 
         return sdf
 
+    def post_timeseries(self,data_frame,value_col):
+        """Posts data that is stored in a dataFrame created by the PANDAS read_csv function.
+        Requires time index and value column names and a stream token.
+        
+        (Note: If timestamps do not already have timezone info and no timezone is given then local timezone is assumed.) 
+        """
+        # Stream token is enclosed in double quote-marks.
+        stream_token = '"' + str(self.token) + '"'
+        
+        data = {stream_token:dict()}
+        count = 0        
+        
+        for date_index in data_frame.index:
+            # The server cannot handle posts over 200000 characters.
+            # Overhead when posting uses approximately 60000 characters.
+            # If there is enough data in the data frame then it can exceed the limit.
+            # Therefore the data should be separated into multiple posts.
+            
+            if len(str(data)) >= 130000:
+
+                r = self._parent_db.post_data(data)
+                
+                try:
+                    count += r["length"]
+                except Exception, e: 
+                    #print (e.message)
+                    raise Exception("Error posting data.")
+                    #continue
+                
+                # Clear data for next post
+                data = {stream_token:dict()}                            
+            
+
+            # Get the timezone for the experiment
+            experiment_timezone = self._parent_node._parent_experiment.timezone            
+            localtz = pytz.timezone(experiment_timezone)
+
+            # If the data doesn't have timezone information then we assume it is local            
+            if date_index.tzinfo is None:
+                # Note - Timestamps are enclosed in double quote-marks.  
+                timestamp = "\"{:s}\"".format(date_index.isoformat())
+            # Otherwise we have to convert it local timezone
+            else:
+                # Note - Timestamps are enclosed in double quote-marks.  
+                timestamp = "\"{:s}\"".format(date_index.astimezone(localtz).strftime("%Y-%m-%dT%H:%M:%S"))
+            
+            # Store value in the data dict using the timestamp as a key
+            data[stream_token][timestamp] = "{:.2f}".format(data_frame[value_col][date_index])
+            # The database recognises 'null' instead of 'nan'
+            if data[stream_token][timestamp] == 'nan':
+                data[stream_token][timestamp] = 'null'
+        r = self._parent_db.post_data(data)
+        try:
+            count += r["length"]
+        except Exception, e: 
+            #print (e.message)
+            raise Exception("Error posting data.")            
+        
+        
+        if count != (data_frame.index.size):
+            print "Data Error  - Count was: " + str(count) + " Expected: " + str(data_frame.index.size)
 
 
     def post_dataframe(self, data_frame, time_col, value_col, tz=None):
